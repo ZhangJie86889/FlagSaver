@@ -12,6 +12,10 @@ __pycache__/
 # 个人数据（不提交真实 flag 数据）
 flag_data.json
 
+# 本机配置与运行日志
+config.json
+flagsaver.log
+
 # 编辑器
 .vscode/
 .idea/

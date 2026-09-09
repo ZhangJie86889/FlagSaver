@@ -11,8 +11,9 @@
 
 | 文件 | 说明 |
 |---|---|
-| **[FlagSaver-Windows-v1.0.0.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver-Windows-v1.0.0.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
-| [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
+| **[FlagSaver-Windows-v1.1.0.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver-Windows-v1.1.0.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
+| [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
+| [v1.0.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.0.0) | 旧版（无设置面板/热键），需要可回退 |
 
 **三步跑起来**：下载 zip → 解压到任意文件夹 → 双击 `FlagSaver.exe`。
 > 首次运行若被 Windows SmartScreen 拦截，点「详细信息 → 仍要运行」。
@@ -22,7 +23,11 @@
 
 ## ✨ 特性
 
-- 🖥️ **全屏屏保**：空闲 5 分钟自动全屏浮现；按 `Esc` 或点 ✕ 立即隐藏
+- 🖥️ **全屏屏保**：空闲到点自动全屏浮现；按 `Esc` 或点 ✕ 立即隐藏
+- ⌨️ **全局热键**：默认 `Ctrl+Alt+G`，Windows 任何界面按一下即呼出，再按隐藏（冲突自动顺延）
+- ⏰ **定时弹出**：可设每天固定时刻（如 22:30）自动全屏
+- 🔧 **可视化设置**：右上角 ⚙ 面板改空闲时间 / 热键 / 定时 / 开机自启，立即生效，无需重打包
+- 🚀 **开机自启**：一键写入 Windows 注册表启动项
 - 🎯 **立 Flag**：输入目标 + 截止日期，自动计算剩余天数；支持子任务勾选
 - 🏷️ **完成态卡片**：到期的 Flag 卡片变色提醒，一目了然
 - ⌨️ **中文输入友好**：运行在普通桌面（非系统 `.scr` 安全桌面），拼音输入法正常可用
@@ -45,7 +50,9 @@
 | 方式 | 行为 |
 |---|---|
 | `FlagSaver.exe`（双击） | 启动后**立即全屏显示** |
-| `FlagSaver.exe /bg` | 后台常驻，**空闲 5 分钟**后自动全屏（适合开机自启） |
+| `FlagSaver.exe /bg` | 后台常驻，**空闲到点**后自动全屏（默认 5 分钟，可在 ⚙ 设置里改） |
+
+> 无论哪种模式，都可以随时用全局热键（默认 `Ctrl+Alt+G`）呼出/隐藏。 |
 
 ### 源码运行
 
@@ -81,10 +88,32 @@ python build_zip.py     # 生成 _zip_out/FlagSaver-Windows-v1.0.0.zip（exe + f
 
 > 等效命令行：`reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v FlagSaver /t REG_SZ /d "\"D:\FlagSaver\FlagSaver.exe\" /bg" /f`
 
-## 🎛️ 配置
+## ⚙️ 设置面板 & 关联 Windows 系统
 
-- **空闲触发时间**：`saver_window.py` 中 `IDLE_SECONDS = 5 * 60`，改后重新打包
-- **开机自启**：把 `"...\FlagSaver.exe" /bg` 加入注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`（或任务管理器「启动」）
+界面右上角 **⚙** 打开设置，改完立刻生效，配置写入程序目录的 `config.json`：
+
+![settings](screenshot_settings.png)
+
+| 选项 | 说明 | 关联到 Windows 的方式 |
+|---|---|---|
+| **空闲多久弹出** | 单位分钟，`0` = 关闭空闲弹出 | `GetLastInputInfo` 读系统空闲时长 |
+| **全局热键** | 默认 `ctrl+alt+g`，任何界面按下即呼出，再按一次隐藏 | `RegisterHotKey` 系统级注册；**若与其它软件冲突会自动顺延**到下一个可用组合 |
+| **每天定时弹出** | 例如 `22:30`，留空关闭 | 本地时间比对，每天触发一次 |
+| **开机自启** | 勾选即可 | 写 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\FlagSaver`（带 `/bg`） |
+
+`config.json` 示例：
+
+```json
+{
+  "idle_seconds": 300,
+  "hotkey": "ctrl+alt+g",
+  "auto_time": "22:30",
+  "autostart": true
+}
+```
+
+> 热键没反应？多半是被其它软件占了。看程序目录 `flagsaver.log`，里面会写明实际生效的是哪个组合，
+> 把设置里的热键改成它即可。
 
 ## 📄 关于「屏保」
 

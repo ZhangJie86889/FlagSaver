@@ -7,7 +7,7 @@ import zipfile
 SRC = r'D:\Desktop\个人文件\FlagSaver'
 STAGE = os.path.join(SRC, '_zip_stage', 'FlagSaver-Windows')
 OUT_DIR = os.path.join(SRC, '_zip_out')
-ZIP_NAME = 'FlagSaver-Windows-v1.0.0.zip'
+ZIP_NAME = 'FlagSaver-Windows-v1.1.0.zip'
 
 GUIDE = """FlagSaver · 立 Flag 倒计时屏保（Windows 版）
 ==========================================
@@ -16,10 +16,19 @@ GUIDE = """FlagSaver · 立 Flag 倒计时屏保（Windows 版）
 1. 把整个文件夹解压到任意位置（建议不要放在需要管理员权限的目录，如 C:\\Program Files）
 2. 双击 FlagSaver.exe  ->  立刻全屏弹出 Flag 倒计时界面
 
-【两种运行方式】
-- 直接双击 FlagSaver.exe        ：启动后立即全屏显示
-- 命令行 FlagSaver.exe /bg      ：后台常驻，电脑空闲 5 分钟后自动全屏弹出
-                                  （适合设为开机自启）
+【三种唤起方式】
+1) 直接双击 FlagSaver.exe       ：启动后立即全屏显示
+2) 全局热键 Ctrl+Alt+G（默认）  ：Windows 任何界面按一下立刻呼出，再按一次隐藏
+                                  （若与其它软件冲突，程序会自动换用下一个可用组合，
+                                    实际使用的按键记录在 flagsaver.log 里）
+3) 空闲 / 定时自动弹出          ：默认空闲 5 分钟弹出，可在界面右上角 ⚙ 里改
+
+【⚙ 设置面板（界面右上角齿轮）】
+- 空闲多久自动弹出（分钟，0 = 关闭）
+- 全局热键（如 ctrl+alt+g、win+shift+g）
+- 每天定时弹出（如 22:30，留空关闭）
+- 开机自启（勾选即写入 Windows 注册表启动项）
+所有设置立即生效，保存在程序目录 config.json，无需重新打包。
 
 【设置开机自启（空闲自动弹）】
 1. Win + R 输入 shell:startup 回车，打开「启动」文件夹
@@ -33,6 +42,7 @@ GUIDE = """FlagSaver · 立 Flag 倒计时屏保（Windows 版）
 - flag.html            全屏界面（可自行用浏览器/编辑器修改，改完重启程序生效）
 - flag_data.example.json  数据格式示例
 - LICENSE / README.md  开源信息与说明
+- config.json / flagsaver.log  首次运行自动生成（个人配置与运行日志）
 
 【数据存储】
 Flag 数据保存在程序同目录的 flag_data.json，程序首次「立 Flag」时会自动创建。
@@ -41,15 +51,17 @@ Flag 数据保存在程序同目录的 flag_data.json，程序首次「立 Flag�
 【常见问题】
 Q: 双击没反应？
 A: 首次运行可能被 Windows SmartScreen 拦截，点「详细信息 -> 仍要运行」即可。
-Q: 想改空闲触发时间？
-A: 改源码 saver_window.py 里的 IDLE_SECONDS（默认 5*60 秒）后重新用 PyInstaller 打包。
+Q: 想改空闲触发时间 / 热键 / 定时？
+A: 界面右上角 ⚙ 设置面板里改，立即生效，不用改代码。
+Q: 热键按了没反应？
+A: 大概率被别的软件占用了。程序会自动顺延到可用组合，打开 flagsaver.log 能看到
+   实际生效的是哪个；也可以自己在 ⚙ 里换一个（比如 win+shift+g）。
 Q: 怎么退出全屏？
 A: 按 Esc 或点界面上的 ×，窗口隐藏，下次空闲会再弹出；彻底退出在任务栏托盘/任务管理器结束进程。
 """
 
 def main():
-    if os.path.isdir(os.path.join(SRC, '_zip_stage')):
-        shutil.rmtree(os.path.join(SRC, '_zip_stage'))
+    # 不做整体删除（避免误触批量删除保护），直接覆盖同名文件即可
     os.makedirs(STAGE, exist_ok=True)
     os.makedirs(OUT_DIR, exist_ok=True)
 
