@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0a1a">
+<title>Flag 倒计时 · 屏保</title>
+<style>
+  /* ================= 基础与变量 ================= */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a1a;
+    --a1: #7c8cff;
+    --a2: #b3baff;
+    --t1: #f4f5ff;
+    --t2: rgba(232,236,255,.66);
+    --t3: rgba(232,236,255,.38);
+    --glass: rgba(255,255,255,.045);
+    --line: rgba(255,255,255,.09);
+    --danger1: #ff6b6b;
+    --danger2: #ffb36b;
+  }
+  [hidden] { display: none !important; }
+  html { scrollbar-color: rgba(255,255,255,.15) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::placeholder { color: rgba(232,236,255,.3); }
+  button, input { font-family: inherit; }
+
+  body {
+    background: var(--bg);
+    color: var(--t1);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    touch-action: manipulation;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.6s ease;
+  }
+
+  /* ================= 背景光晕 ================= */
+  .orb { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0; transition: opacity 0.6s ease; }
+  .orb-1 { width: 58vmax; height: 58vmax; top: -20%; left: -14%;
+    background: radial-gradient(circle, rgba(88,102,255,.30), transparent 65%);
+    animation: drift1 26s ease-in-out infinite alternate; }
+  .orb-2 { width: 48vmax; height: 48vmax; bottom: -18%; right: -12%;
+    background: radial-gradient(circle, rgba(150,110,255,.22), transparent 65%);
+    animation: drift2 34s ease-in-out infinite alternate; }
+  .orb-3 { width: 36vmax; height: 36vmax; top: 38%; left: 52%;
+    background: radial-gradient(circle, rgba(90,170,255,.16), transparent 65%);
+    animation: drift3 40s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(10vw, 9vh) scale(1.12); } }
+  @keyframes drift2 { to { transform: translate(-9vw, -7vh) scale(1.08); } }
+  @keyframes drift3 { to { transform: translate(-12vw, 6vh) scale(.92); } }
+
+  .container { position: relative; z-index: 1; max-width: 1250px; margin: 0 auto; padding: 0 22px 80px; }
+
+  /* ================= 顶部时钟 ================= */
+  .clock-section { text-align: center; padding: clamp(34px, 7vh, 72px) 18px clamp(26px, 4.5vh, 52px); }
+  .time {
+    font-size: clamp(3rem, 9vw, 5.6rem);
+    font-weight: 300;
+    letter-spacing: .03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #ffffff 30%, #9aa5ff);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 30px rgba(124,140,255,.28));
+    transition: filter 0.5s ease, font-size 0.5s ease;
+  }
+  .colon { animation: colonBlink 2s ease-in-out infinite; }
+  @keyframes colonBlink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+  .date { margin-top: 12px; color: var(--t2); font-size: clamp(13px, 2vw, 16px); letter-spacing: .16em; }
+  .enter-tip { margin-top: 26px; color: var(--t3); font-size: 13px; letter-spacing: .03em; }
+  .enter-tip kbd {
+    font-family: inherit; font-size: 11px; padding: 2px 7px 3px; margin: 0 2px;
+    border-radius: 6px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+  }
+
+  /* ================= Flag 卡片网格 ================= */
+  .flags-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(315px, 1fr)); gap: 22px; align-items: stretch; }
+
+  /* 【修改】卡片改为醒目的实体渐变背景 */
+  .card {
+    position: relative;
+    display: flex; flex-direction: column;
+    padding: 22px 22px 18px;
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(35, 39, 75, 0.95), rgba(16, 18, 40, 0.95));
+    border: 1px solid rgba(124, 140, 255, 0.35);
+    box-shadow: 0 12px 28px -8px rgba(0,0,0,0.5);
+    transition: transform .35s cubic-bezier(.22,1,.36,1), border-color .35s, box-shadow .35s;
+    user-select: none; -webkit-user-select: none;
+  }
+  .card:hover { transform: translateY(-4px); border-color: rgba(124,140,255,.65); box-shadow: 0 22px 55px -18px rgba(30,40,120,.65); }
+  .card input { user-select: text; -webkit-user-select: text; }
+  .card-enter { animation: cardIn .75s cubic-bezier(.22,1,.36,1) backwards; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(28px) scale(.96); } }
+  .card-flash { animation: cardFlash 1.8s ease-out; }
+  @keyframes cardFlash {
+    0% { box-shadow: 0 0 0 2px rgba(124,140,255,.85), 0 0 46px rgba(124,140,255,.5); }
+    100% { box-shadow: 0 12px 28px -8px rgba(0,0,0,0.5); }
+  }
+
+  .card.is-done { opacity: .55; border-color: rgba(255,255,255,.12); background: linear-gradient(145deg, rgba(30, 33, 50, 0.9), rgba(15, 17, 30, 0.9)); }
+  .card.is-done .flag-name, .card.is-done .flag-date, .card.is-done .done-flag { text-decoration: line-through; }
+  .card.is-done .progress-fill { background: linear-gradient(90deg, rgba(124,140,255,.5), rgba(179,186,255,.5)); box-shadow: none; }
+  
+  .card.is-overdue { border-color: rgba(255,107,107,.5); background: linear-gradient(145deg, rgba(75, 35, 39, 0.95), rgba(40, 16, 18, 0.95)); }
+  .card.is-overdue:hover { border-color: rgba(255,107,107,.8); }
+
+  /* 卡片右上角操作按钮 */
+  .card-actions { position: absolute; top: 13px; right: 13px; display: flex; gap: 6px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.11);
+    background: rgba(255,255,255,.05);
+    cursor: pointer; font-size: 14px; line-height: 1;
+    display: grid; place-items: center;
+    transition: background .2s, transform .2s, border-color .2s;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,.15); transform: scale(1.08); }
+  .icon-btn:active { transform: scale(.94); }
+  .icon-btn.icon-danger:hover { border-color: rgba(255,107,107,.5); background: rgba(255,107,107,.13); }
+
+  .flag-name { font-size: 18px; font-weight: 600; line-height: 1.45; margin: 0 0 7px; padding-right: 78px; overflow-wrap: break-word; }
+  .flag-date { font-size: 12.5px; color: var(--t3); letter-spacing: .05em; font-variant-numeric: tabular-nums; }
+
+  /* 倒计时大数字 */
+  .countdown { display: flex; align-items: baseline; gap: 7px; margin: 16px 0 18px; min-height: 52px; }
+  .cd-label { font-size: 13px; color: var(--t3); letter-spacing: .12em; }
+  .cd-overdue-label { color: rgba(255,158,128,.85); }
+  .cd-num {
+    font-size: clamp(2.7rem, 5vw, 3.5rem); font-weight: 800; line-height: 1;
+    letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, var(--a1) 10%, var(--a2));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .cd-num.cd-overdue {
+    background: linear-gradient(135deg, var(--danger1), var(--danger2));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 16px rgba(255,107,107,.3));
+  }
+  .cd-num.cd-today {
+    font-size: clamp(1.8rem, 3.5vw, 2.3rem);
+    background: linear-gradient(135deg, #ffb36b, #ffe3a3);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .cd-unit { font-size: 15px; color: var(--t2); }
+  .done-flag {
+    font-size: 1.5rem; font-weight: 700;
+    background: linear-gradient(135deg, var(--a1), var(--a2));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* 进度条 */
+  .progress-row { display: flex; align-items: center; gap: 12px; }
+  .progress-bar { flex: 1; height: 7px; border-radius: 99px; background: rgba(255,255,255,.07); overflow: hidden; }
+  .progress-fill {
+    width: 0; height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--a1), var(--a2));
+    box-shadow: 0 0 14px rgba(124,140,255,.55);
+    transition: width .9s cubic-bezier(.22,1,.36,1);
+  }
+  .progress-text { font-size: 12px; color: var(--t3); font-variant-numeric: tabular-nums; min-width: 36px; text-align: right; letter-spacing: .02em; }
+
+  /* 子任务折叠面板 */
+  .toggle-subtasks {
+    display: flex; justify-content: space-between; align-items: center; width: 100%;
+    margin-top: 14px; padding: 10px 12px;
+    border: none; border-radius: 10px;
+    background: rgba(255,255,255,.05);
+    color: var(--t2); font-size: 13.5px; cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+  .toggle-subtasks:hover { background: rgba(255,255,255,.1); color: var(--t1); }
+  .chevron { transition: transform .35s; font-size: 12px; }
+  .toggle-subtasks.expanded .chevron { transform: rotate(180deg); }
+
+  .subtask-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .42s cubic-bezier(.22,1,.36,1); }
+  .subtask-panel.open { grid-template-rows: 1fr; }
+  .subtask-inner { min-height: 0; overflow: hidden; }
+  .subtask-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
+  .subtask-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 8px; border-radius: 10px; transition: background .2s; }
+  .subtask-item:hover { background: rgba(255,255,255,.045); }
+  .subtask-text { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.55; color: var(--t1); cursor: pointer; overflow-wrap: break-word; transition: color .25s; padding-top: 1px; }
+  .subtask-item.done .subtask-text { color: var(--t3); text-decoration: line-through; }
+
+  .subtask-item input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 19px; height: 19px; flex-shrink: 0; margin-top: 1px;
+    border: 1.5px solid rgba(255,255,255,.28); border-radius: 6px;
+    background: transparent; cursor: pointer; position: relative;
+    transition: background .22s, border-color .22s, transform .15s;
+  }
+  .subtask-item input[type="checkbox"]:hover { border-color: rgba(179,186,255,.7); }
+  .subtask-item input[type="checkbox"]:active { transform: scale(.88); }
+  .subtask-item input[type="checkbox"]:checked { background: linear-gradient(135deg, var(--a1), var(--a2)); border-color: transparent; }
+  .subtask-item input[type="checkbox"]:checked::after {
+    content: ""; position: absolute; left: 5.5px; top: 2px;
+    width: 4px; height: 9px;
+    border: solid #0b0c20; border-width: 0 2.2px 2.2px 0;
+    transform: rotate(43deg);
+  }
+
+  .subtask-del { border: none; background: none; color: var(--t3); font-size: 13px; line-height: 1; padding: 4px 5px; border-radius: 6px; cursor: pointer; transition: color .2s, opacity .2s; flex-shrink: 0; margin-top: 1px; opacity: .55; }
+  .subtask-del:hover { opacity: 1; color: #ff8585; }
+  .subtask-empty { padding: 6px 8px; font-size: 13px; color: var(--t3); }
+
+  .subtask-add-row { display: flex; gap: 8px; margin-top: 10px; }
+  .subtask-input {
+    flex: 1; min-width: 0;
+    background: rgba(0,0,0,.2);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 9px 12px;
+    color: var(--t1); font-size: 13.5px; outline: none;
+    transition: border-color .25s;
+  }
+  .subtask-input:focus { border-color: rgba(124,140,255,.55); }
+  .subtask-add-btn {
+    padding: 9px 16px; border-radius: 10px; border: none;
+    background: rgba(124,140,255,.2); color: var(--a2);
+    font-size: 13.5px; cursor: pointer; transition: background .2s;
+  }
+  .subtask-add-btn:hover { background: rgba(124,140,255,.35); }
+
+  /* ================= 底部添加区 ================= */
+  .add-section {
+    display: flex; gap: 10px;
+    max-width: 760px; margin: 46px auto 0; padding: 12px;
+    border-radius: 18px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+  }
+  @media (min-width: 561px) {
+    .add-section {
+      position: sticky; bottom: 16px; z-index: 5;
+      background: rgba(16,17,38,.74);
+      box-shadow: 0 24px 60px -18px rgba(0,0,0,.65);
+    }
+  }
+  .add-section input {
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.11);
+    border-radius: 12px; padding: 12px 15px;
+    color: var(--t1); font-size: 14.5px; outline: none;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .add-section input:focus { border-color: rgba(124,140,255,.6); box-shadow: 0 0 0 3px rgba(124,140,255,.14); }
+  #flagName { flex: 1; min-width: 0; }
+  #flagDate { width: 152px; flex-shrink: 0; }
+  .add-btn {
+    padding: 12px 22px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, var(--a1), var(--a2));
+    color: #0b0c20; font-size: 14.5px; font-weight: 700; cursor: pointer;
+    white-space: nowrap; letter-spacing: .02em;
+    transition: transform .2s, box-shadow .25s;
+  }
+  .add-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -6px rgba(124,140,255,.5); }
+  .add-btn:active { transform: translateY(0); }
+  .storage-note { text-align: center; color: rgba(232,236,255,.26); font-size: 12px; letter-spacing: .06em; margin: 14px 0 0; }
+  .empty-state { text-align: center; color: var(--t3); font-size: 15px; line-height: 2.1; padding: 48px 16px; letter-spacing: .03em; }
+
+  /* 校验抖动 */
+  .invalid { border-color: rgba(255,107,107,.75) !important; animation: shakeX .45s ease; }
+  @keyframes shakeX {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+  }
+
+  /* ================= 右上角按钮 / 提示 ================= */
+  .corner-btn {
+    position: fixed; top: 18px; right: 20px; z-index: 60;
+    height: 42px; min-width: 42px; padding: 0 18px;
+    border-radius: 99px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.8); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transition: background .25s, color .25s, transform .2s, opacity .3s;
+    letter-spacing: .02em;
+  }
+  .corner-btn:hover { background: rgba(255,255,255,.14); color: #fff; transform: translateY(-1px); }
+  .corner-btn:active { transform: translateY(0) scale(.96); }
+  #exitFsBtn { padding: 0; width: 42px; display: none; opacity: .6; }
+  body.screensaver #exitFsBtn { display: flex; }
+  #exitFsBtn:hover { opacity: 1; }
+
+  .fs-toast {
+    position: fixed; top: 22px; left: 50%; z-index: 50;
+    transform: translateX(-50%) translateY(-14px);
+    padding: 10px 22px; border-radius: 99px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    color: var(--t2); font-size: 13.5px; letter-spacing: .06em;
+    opacity: 0; pointer-events: none;
+    transition: opacity .5s, transform .5s;
+    max-width: 86vw; text-align: center;
+  }
+  .fs-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ================= 【修改】屏保模式纯黑背景覆盖 ================= */
+  body.screensaver {
+    background-color: #000000 !important;
+  }
+  body.screensaver .orb {
+    opacity: 0; /* 隐藏背景光晕，彻底纯净 */
+  }
+  body.screensaver .no-fs { display: none !important; }
+  body.screensaver .toggle-subtasks,
+  body.screensaver .subtask-panel { display: none !important; }
+  body.screensaver .clock-section { padding-top: clamp(40px, 9vh, 96px); padding-bottom: clamp(28px, 5vh, 56px); }
+  body.screensaver .time { font-size: clamp(3.8rem, 11vw, 7.2rem); filter: drop-shadow(0 0 46px rgba(124,140,255,.5)); }
+  body.screensaver .card:hover { transform: none; border-color: rgba(124,140,255,.35); box-shadow: 0 12px 28px -8px rgba(0,0,0,0.5); }
+
+  /* ================= 关联数据文件横幅 ================= */
+  .link-banner {
+    position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%);
+    z-index: 70; display: flex; align-items: center; gap: 12px;
+    padding: 11px 16px; border-radius: 14px;
+    background: rgba(20, 22, 46, .92); border: 1px solid rgba(124, 140, 255, .4);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    color: var(--t2); font-size: 13.5px; letter-spacing: .02em;
+    box-shadow: 0 18px 44px -16px rgba(0, 0, 0, .6);
+    max-width: 92vw;
+  }
+  .link-btn {
+    border: 1px solid rgba(124, 140, 255, .5); background: rgba(124, 140, 255, .18);
+    color: var(--a2); padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    font-size: 13.5px; white-space: nowrap; transition: background .2s;
+  }
+  .link-btn:hover { background: rgba(124, 140, 255, .34); }
+  @media (max-width: 560px) {
+    .link-banner { bottom: 150px; flex-direction: column; gap: 8px; text-align: center; }
+  }
+
+  /* ================= 响应式 ================= */
+  @media (max-width: 700px) {
+    .flags-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .container { padding: 0 14px 60px; }
+    .clock-section { padding-top: 66px; }
+    .corner-btn { top: 12px; right: 12px; height: 38px; }
+    #enterFsBtn { padding: 0 12px; }
+    #enterFsBtn .btn-label { display: none; }
+    .add-section { flex-direction: column; gap: 8px; }
+    #flagDate { width: 100%; }
+    .card { padding: 20px 18px 16px; }
+    .flag-name { padding-right: 64px; font-size: 17px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="orb orb-1" aria-hidden="true"></div>
+  <div class="orb orb-2" aria-hidden="true"></div>
+  <div class="orb orb-3" aria-hidden="true"></div>
+
+  <button class="corner-btn no-fs" id="enterFsBtn" title="进入屏保模式">⛶ <span class="btn-label">屏保模式</span></button>
+  <button class="corner-btn" id="exitFsBtn" title="退出屏保" aria-label="退出屏保">✕</button>
+  <div class="fs-toast" id="fsToast"></div>
+  <div class="link-banner no-fs" id="linkBanner" hidden>
+    <span>📂 当前编辑只存在本浏览器。</span>
+    <button id="linkBtn" class="link-btn" type="button">关联 flag_data.json（同步到屏保）</button>
+  </div>
+
+  <main class="container">
+    <header class="clock-section">
+      <h1 class="time" id="clockTime">--:--:--</h1>
+      <p class="date" id="clockDate"></p>
+      <p class="enter-tip no-fs">✨ 点击页面空白处或右上角 ⛶ 进入屏保 · 按 <kbd>ESC</kbd> 退出</p>
+    </header>
+
+    <section class="flags-grid" id="flagsGrid" aria-label="Flag 列表"></section>
+
+    <p class="empty-state no-fs" id="emptyState" hidden>
+      🏝️ 这里还很空<br>
+      在下方添加你的第一个 Flag，点亮这一年的目标
+    </p>
+
+    <footer class="add-section no-fs">
+      <input type="text" id="flagName" maxlength="40" placeholder="输入新 Flag，如：通过 CPA 考试" autocomplete="off">
+      <input type="date" id="flagDate" title="截止日期">
+      <button class="add-btn" id="addFlagBtn">＋ 添加</button>
+    </footer>
+    <p class="storage-note no-fs">数据自动保存在本浏览器 · 不上传任何服务器</p>
+  </main>
+
+<script>
+'use strict';
+
+/* ==================== 常量与状态 ==================== */
+const STORAGE_KEY = 'flagCountdown.screensaver.v1';
+const $ = (s, p) => (p || document).querySelector(s);
+
+const clockTime  = $('#clockTime');
+const clockDate  = $('#clockDate');
+const flagsGrid  = $('#flagsGrid');
+const emptyState = $('#emptyState');
+const fsToast    = $('#fsToast');
+const docEl      = document.documentElement;
+
+let flags = [];
+let firstRender = true;
+let highlightId = null;           
+const expandedIds = new Set();    
+
+/* ==================== 工具函数 ==================== */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = s => String(s).replace(/[&<>"']/g, c => ESC_MAP[c]);
+
+function toLocalISO(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+function addDays(base, n) { const d = new Date(base); d.setDate(d.getDate() + n); return d; }
+
+/* ==================== 时区格式化器 ==================== */
+const timeFmt  = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const dateFmt  = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric' });
+const weekFmt  = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'long' });
+const bjDayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+function getDaysLeft(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) return NaN;
+  const [ty, tm, td] = bjDayFmt.format(new Date()).split('-').map(Number);
+  const [yy, ym, yd] = dateStr.split('-').map(Number);
+  const today  = new Date(ty, tm - 1, td);
+  const target = new Date(yy, ym - 1, yd);
+  return Math.round((target - today) / 86400000);
+}
+
+/* ==================== 数据层 ==================== */
+function normalize(list) {
+  return list.map(f => ({
+    id: typeof f.id === 'string' && f.id ? f.id : uid(),
+    name: typeof f.name === 'string' ? f.name : '未命名 Flag',
+    date: typeof f.date === 'string' ? f.date : '',
+    completed: !!f.completed,
+    subtasks: Array.isArray(f.subtasks)
+      ? f.subtasks.map(s => ({
+          id: typeof s.id === 'string' && s.id ? s.id : uid(),
+          text: typeof s.text === 'string' ? s.text : '',
+          done: !!s.done
+        }))
+      : []
+  }));
+}
+
+function defaultFlags() {
+  const now = new Date();
+  return [
+    {
+      id: uid(), name: '考研上岸 · 目标 400 分', date: toLocalISO(addDays(now, 122)), completed: false,
+      subtasks: [
+        { id: uid(), text: '数学真题刷完近 10 年', done: true },
+        { id: uid(), text: '英语作文模板整理成册', done: false },
+        { id: uid(), text: '政治主观题背诵过关', done: false }
+      ]
+    },
+    {
+      id: uid(), name: '减脂到 70kg', date: toLocalISO(addDays(now, 37)), completed: false,
+      subtasks: [
+        { id: uid(), text: '每周 4 次力量训练', done: true },
+        { id: uid(), text: '戒掉宵夜和含糖饮料', done: false }
+      ]
+    },
+    {
+      id: uid(), name: '读完 12 本书', date: toLocalISO(addDays(now, -24)), completed: false,
+      subtasks: [
+        { id: uid(), text: '《置身事内》', done: true },
+        { id: uid(), text: '《纳瓦尔宝典》', done: true }
+      ]
+    }
+  ];
+}
+
+/* 数据存储：优先写入同目录 JSON 文件（屏保环境），否则用 localStorage。
+   平时浏览器里也可用 localStorage；屏保里用文件，二者都可读。 */
+let hasFileStore = false;
+function detectFileStore() {
+  try {
+    hasFileStore = !!(window.pywebview && window.pywebview.api
+      && window.pywebview.api.read_flags && window.pywebview.api.write_flags);
+  } catch (e) { hasFileStore = false; }
+}
+
+/* 真实屏保（pywebview）环境：覆盖退出接口。
+   默认 .scr 注入的钩子会在任意鼠标/键盘事件时调用 quit_saver() 退出，
+   这里拦截为：仅按 Esc 才真正退出，鼠标移动/点击不再退出，
+   从而能在屏保界面里自由点选、勾选、添加 Flag。 */
+function patchSaverExit() {
+  try {
+    const api = window.pywebview && window.pywebview.api;
+    if (!api || typeof api.quit_saver !== 'function') return;
+    const orig = api.quit_saver.bind(api);
+    api.quit_saver = function () {
+      if (window.__saverExitOK) return orig();
+      return false;   // 鼠标移动/点击等非 Esc 触发：忽略，不退出屏保
+    };
+    // 仅 Esc 键允许真正退出（capture 阶段，先于 .scr 注入的冒泡监听）
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+        window.__saverExitOK = true;
+        try { window.pywebview.api.quit_saver(); } catch (_) {}
+      }
+    }, true);
+  } catch (_) {}
+}
+
+/* ==================== 浏览器模式：直接读写 D:\Desktop\flag_data.json ====================
+   屏保(.scr)通过 pywebview 读写该文件；日常在 Edge 里打开本页时，用 File System Access API
+   读写同一份文件，从而实现"在浏览器里改 flag → 屏保自动生效"。 */
+let fileHandle = null;
+const IDB_NAME = 'flagFsHandleDB', IDB_KEY = 'handle';
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('kv')) r.result.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet() {
+  try {
+    const db = await idbOpen();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction('kv', 'readonly');
+      const rq = tx.objectStore('kv').get(IDB_KEY);
+      rq.onsuccess = () => res(rq.result || null);
+      rq.onerror = () => rej(rq.error);
+    });
+  } catch (e) { return null; }
+}
+async function idbSet(h) {
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(h, IDB_KEY);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    return true;
+  } catch (e) { return false; }
+}
+async function loadFileHandle() {
+  if (!('showOpenFilePicker' in window)) return;   // 仅 Edge/Chrome 等支持
+  try { fileHandle = await idbGet(); } catch (e) { fileHandle = null; }
+}
+async function linkDataFile() {
+  if (!('showOpenFilePicker' in window)) {
+    showToast('⚠️ 请用 Microsoft Edge 或 Chrome 打开本页以同步到屏保');
+    return;
+  }
+  try {
+    const [h] = await window.showOpenFilePicker({
+      id: 'flagdata', startIn: 'desktop',
+      suggestedName: 'flag_data.json',
+      types: [{ description: 'JSON 数据', accept: { 'application/json': ['.json'] } }]
+    });
+    fileHandle = h;
+    await idbSet(h);
+    showToast('✅ 已关联 flag_data.json · 后续编辑自动保存到屏保', 3200);
+    hideLinkBanner();
+    updateNote();
+    await load();
+  } catch (e) { /* 用户取消选择 */ }
+}
+async function ensurePermission() {
+  if (!fileHandle || !fileHandle.queryPermission) return true;
+  try {
+    const opt = { mode: 'readwrite' };
+    if ((await fileHandle.queryPermission(opt)) === 'granted') return true;
+    return (await fileHandle.requestPermission(opt)) === 'granted';
+  } catch (e) { return false; }
+}
+async function readFileViaHandle() {
+  if (!fileHandle) return null;
+  if (!(await ensurePermission())) return null;
+  try { const f = await fileHandle.getFile(); const t = await f.text(); return t || null; }
+  catch (e) { return null; }
+}
+async function writeFileViaHandle(text) {
+  if (!fileHandle) return false;
+  if (!(await ensurePermission())) return false;
+  try {
+    const w = await fileHandle.createWritable();
+    await w.write(text); await w.close();
+    return true;
+  } catch (e) { return false; }
+}
+function showLinkBanner() {
+  const b = document.getElementById('linkBanner');
+  if (b) b.hidden = false;
+}
+function hideLinkBanner() {
+  const b = document.getElementById('linkBanner');
+  if (b) b.hidden = true;
+}
+function updateNote() {
+  const note = document.querySelector('.storage-note');
+  if (!note) return;
+  if (fileHandle) note.textContent = '✅ 已同步到 D:\\Desktop\\flag_data.json · 屏保自动读取';
+  else if (!('showOpenFilePicker' in window)) note.textContent = '数据保存在本浏览器 · 用 Edge/Chrome 打开可同步到屏保';
+  else note.textContent = '数据自动保存在本浏览器 · 不上传任何服务器';
+}
+
+async function load() {
+  let data = null;
+  if (hasFileStore) {
+    // 屏保模式（pywebview）：直接读写 flag_data.json
+    try {
+      const raw = await window.pywebview.api.read_flags();
+      if (raw) data = JSON.parse(raw);
+    } catch (err) { data = null; }
+    flags = Array.isArray(data) ? normalize(data) : defaultFlags();
+    save();   // 文件模式：总是写回文件，确保文件存在且为最新数据
+    render();
+    return;
+  }
+  if (fileHandle) {
+    // 浏览器模式且已关联文件：读写同一份 flag_data.json
+    const raw = await readFileViaHandle();
+    if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
+    flags = Array.isArray(data) ? normalize(data) : defaultFlags();
+    if (!Array.isArray(data)) save();
+    render();
+    return;
+  }
+  // 浏览器模式兜底：localStorage
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) data = JSON.parse(raw);
+  } catch (err) { data = null; }
+  flags = Array.isArray(data) ? normalize(data) : defaultFlags();
+  if (!Array.isArray(data)) save();
+  render();
+}
+async function save() {
+  const text = JSON.stringify(flags);
+  if (hasFileStore) {
+    try { const ok = await window.pywebview.api.write_flags(text); if (ok) return; } catch (err) {}
+  }
+  if (fileHandle) {
+    const ok = await writeFileViaHandle(text);
+    if (ok) return;
+  }
+  try { localStorage.setItem(STORAGE_KEY, text); } catch (err) {}
+}
+function findFlag(id) { return flags.find(f => f.id === id); }
+
+/* ==================== 渲染层 ==================== */
+function subtaskHTML(s) {
+  return `<li class="subtask-item${s.done ? ' done' : ''}" data-id="${s.id}">
+    <input type="checkbox" id="ck-${s.id}"${s.done ? ' checked' : ''} aria-label="${esc(s.text)}">
+    <label class="subtask-text" for="ck-${s.id}">${esc(s.text)}</label>
+    <button class="subtask-del no-fs" data-action="delete-subtask" data-sub="${s.id}" title="删除子任务">✕</button>
+  </li>`;
+}
+
+function cardHTML(flag, idx) {
+  const days = getDaysLeft(flag.date);
+  const total = flag.subtasks.length;
+  const doneCount = flag.subtasks.filter(s => s.done).length;
+  const pct = total ? Math.round(doneCount / total * 100) : 0;
+  const expanded = expandedIds.has(flag.id);
+
+  const cls = ['card'];
+  if (flag.completed) cls.push('is-done');
+  if (!flag.completed && !isNaN(days) && days < 0) cls.push('is-overdue');
+  if (flag.id === highlightId) cls.push('card-flash');
+  if (idx >= 0) cls.push('card-enter');
+  const style = idx >= 0 ? ` style="animation-delay:${idx * 90}ms"` : '';
+
+  let countdown;
+  if (flag.completed) {
+    countdown = `<span class="done-flag">🎉 已完成</span>`;
+  } else if (isNaN(days)) {
+    countdown = `<span class="cd-label">日期无效</span>`;
+  } else if (days > 0) {
+    countdown = `<span class="cd-label">剩余</span><span class="cd-num">${days}</span><span class="cd-unit">天</span>`;
+  } else if (days === 0) {
+    countdown = `<span class="cd-num cd-today">今天</span><span class="cd-unit">截止</span>`;
+  } else {
+    countdown = `<span class="cd-label cd-overdue-label">已逾期</span><span class="cd-num cd-overdue">${-days}</span><span class="cd-unit">天</span>`;
+  }
+
+  const subs = total ? flag.subtasks.map(subtaskHTML).join('')
+                     : '<li class="subtask-empty">暂无子任务，添加一个开始拆解目标吧 ↓</li>';
+  const progressLabel = total ? doneCount + '/' + total : '—';
+
+  return `
+  <article class="${cls.join(' ')}" data-id="${flag.id}"${style}>
+    <div class="card-actions no-fs">
+      <button class="icon-btn" data-action="toggle-done" title="${flag.completed ? '取消完成' : '标记为已完成'}">${flag.completed ? '↩️' : '✅'}</button>
+      <button class="icon-btn icon-danger" data-action="delete" title="删除该 Flag">🗑️</button>
+    </div>
+    <h2 class="flag-name">${esc(flag.name)}</h2>
+    <p class="flag-date">🎯 截止 ${esc(flag.date)}</p>
+    <div class="countdown">${countdown}</div>
+    <div class="progress-row">
+      <div class="progress-bar"><div class="progress-fill" data-pct="${pct}"></div></div>
+      <span class="progress-text">${progressLabel}</span>
+    </div>
+    <button class="toggle-subtasks${expanded ? ' expanded' : ''}" data-action="toggle-expand">
+      <span>📋 子任务${total ? ` · ${doneCount}/${total}` : ''}</span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="subtask-panel${expanded ? ' open' : ''}">
+      <div class="subtask-inner">
+        <ul class="subtask-list">${subs}</ul>
+        <div class="subtask-add-row no-fs">
+          <input type="text" class="subtask-input" placeholder="添加子任务…" maxlength="60">
+          <button class="subtask-add-btn" data-action="add-subtask">添加</button>
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
+function render() {
+  flags.sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return (getDaysLeft(a.date) || 0) - (getDaysLeft(b.date) || 0);
+  });
+
+  const useAnim = firstRender;
+  flagsGrid.innerHTML = flags.map((f, i) => cardHTML(f, useAnim ? i : -1)).join('');
+  emptyState.hidden = flags.length > 0;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    flagsGrid.querySelectorAll('.progress-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+    if (highlightId) {
+      const el = flagsGrid.querySelector('.card[data-id="' + highlightId + '"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      highlightId = null;
+    }
+  }));
+  firstRender = false;
+}
+
+/* ==================== 时钟 ==================== */
+let lastDateKey = '';
+function tick() {
+  const now = new Date();
+  const p = {};
+  timeFmt.formatToParts(now).forEach(part => { p[part.type] = part.value; });
+  clockTime.innerHTML = p.hour + '<span class="colon">:</span>' + p.minute + '<span class="colon">:</span>' + p.second;
+  const key = dateFmt.format(now);
+  clockDate.textContent = key + ' ' + weekFmt.format(now);
+  if (key !== lastDateKey) { lastDateKey = key; render(); }
+}
+
+/* ==================== 校验抖动 / Toast ==================== */
+function shake(el) {
+  el.classList.remove('invalid');
+  void el.offsetWidth;
+  el.classList.add('invalid');
+  setTimeout(() => el.classList.remove('invalid'), 1200);
+}
+
+let toastTimer = null;
+function showToast(msg, duration) {
+  fsToast.textContent = msg;
+  fsToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => fsToast.classList.remove('show'), duration || 2600);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  fsToast.classList.remove('show');
+}
+
+/* 关联按钮：点击后选择 D:\Desktop\flag_data.json 并持久化句柄 */
+(function () {
+  const btn = document.getElementById('linkBtn');
+  if (btn) btn.addEventListener('click', () => { linkDataFile(); });
+})();
+
+/* ==================== 添加 Flag ==================== */
+function addFlag() {
+  const nameEl = $('#flagName'), dateEl = $('#flagDate');
+  const name = nameEl.value.trim();
+  const date = dateEl.value;
+  if (!name || !date) {
+    if (!name) shake(nameEl);
+    if (!date) shake(dateEl);
+    showToast('⚠️ 请填写 Flag 名称和截止日期');
+    return;
+  }
+  const f = { id: uid(), name, date, completed: false, subtasks: [] };
+  flags.push(f);
+  highlightId = f.id;
+  save();
+  render();
+  showToast('✅ 已添加「' + name + '」');
+  nameEl.value = '';
+  nameEl.focus();
+}
+$('#addFlagBtn').addEventListener('click', addFlag);
+
+/* ==================== 卡片区事件委托 ==================== */
+flagsGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  e.stopPropagation();
+  const card = btn.closest('.card');
+  const flag = card && findFlag(card.dataset.id);
+  if (!flag) return;
+
+  switch (btn.dataset.action) {
+    case 'toggle-done':
+      flag.completed = !flag.completed;
+      save(); render();
+      break;
+    case 'delete': {
+      const name = flag.name;
+      flags = flags.filter(f => f.id !== flag.id);
+      expandedIds.delete(flag.id);
+      save(); render();
+      showToast('🗑️ 已删除「' + name + '」');
+      break;
+    }
+    case 'toggle-expand': {
+      const wasOpen = expandedIds.has(flag.id);
+      if (wasOpen) expandedIds.delete(flag.id); else expandedIds.add(flag.id);
+      btn.classList.toggle('expanded', !wasOpen);
+      const panel = card.querySelector('.subtask-panel');
+      if (panel) panel.classList.toggle('open', !wasOpen);
+      break;
+    }
+    case 'add-subtask': {
+      const input = card.querySelector('.subtask-input');
+      const text = input ? input.value.trim() : '';
+      if (!text) { if (input) shake(input); return; }
+      flag.subtasks.push({ id: uid(), text, done: false });
+      save(); render();
+      const newInput = document.querySelector('.card[data-id="' + flag.id + '"] .subtask-input');
+      if (newInput) newInput.focus();
+      break;
+    }
+    case 'delete-subtask':
+      flag.subtasks = flag.subtasks.filter(s => s.id !== btn.dataset.sub);
+      save(); render();
+      break;
+  }
+});
+
+flagsGrid.addEventListener('change', (e) => {
+  const cb = e.target;
+  if (!(cb instanceof HTMLInputElement) || cb.type !== 'checkbox') return;
+  const li = cb.closest('.subtask-item');
+  const card = cb.closest('.card');
+  if (!li || !card) return;
+  const flag = findFlag(card.dataset.id);
+  const sub = flag && flag.subtasks.find(s => s.id === li.dataset.id);
+  if (sub) {
+    sub.done = cb.checked;
+    save(); render();
+  }
+});
+
+/* ==================== 键盘 ==================== */
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Escape' && document.body.classList.contains('screensaver')) {
+    exitScreensaver();
+    return;
+  }
+  if (e.key !== 'Enter') return;
+  const t = e.target;
+  if (t && (t.id === 'flagName' || t.id === 'flagDate')) {
+    e.preventDefault();
+    addFlag();
+  } else if (t && t.classList && t.classList.contains('subtask-input')) {
+    e.preventDefault();
+    const addBtn = t.closest('.card') && t.closest('.card').querySelector('[data-action="add-subtask"]');
+    if (addBtn) addBtn.click();
+  }
+});
+
+/* ==================== 【修复 Bug】全屏 / 屏保模式 ==================== */
+const fsReq  = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+const fsExit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+const fsElem = () => document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+const isTouch  = !!(window.matchMedia && matchMedia('(hover: none)').matches);
+const EXIT_HINT = isTouch ? '已进入屏保 · 点击右上角 ✕ 退出' : '已进入屏保 · 按 ESC 退出';
+
+function enterScreensaver() {
+  if (document.body.classList.contains('screensaver')) return;
+  
+  // 【核心修复】先立即添加类，实现 UI 瞬间响应（无延迟，无失败阻塞）
+  document.body.classList.add('screensaver');
+  showToast(EXIT_HINT, 3200);
+  
+  // 然后再尝试调用原生全屏 API
+  if (typeof fsReq === 'function') {
+    let p = null;
+    try { 
+      p = fsReq.call(docEl); 
+    } catch (err) { 
+      // 同步报错：忽略，CSS 屏保已生效
+    }
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => {
+        // 异步拒绝（如 iframe 拦截）：忽略，CSS 屏保已生效
+      });
+    }
+  }
+}
+
+function exitScreensaver() {
+  document.body.classList.remove('screensaver');
+  hideToast();
+  if (typeof fsExit === 'function' && fsElem()) {
+    try { fsExit.call(document); } catch(e) {}
+  }
+}
+
+function onFsChange() {
+  // 如果浏览器原生退出了全屏（比如用户按了浏览器的 ESC），同步移除屏保类
+  if (!fsElem()) {
+    document.body.classList.remove('screensaver');
+    hideToast();
+  }
+}
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']
+  .forEach(ev => document.addEventListener(ev, onFsChange));
+
+$('#enterFsBtn').addEventListener('click', (e) => { e.stopPropagation(); enterScreensaver(); });
+$('#exitFsBtn').addEventListener('click', (e) => { e.stopPropagation(); exitScreensaver(); });
+
+/* 点击"空白区域"进入屏保 */
+const INTERACTIVE = 'button, input, select, textarea, label, a, .card, .add-section';
+document.addEventListener('click', (e) => {
+  if (hasFileStore) return;   // 真实屏保环境：鼠标点击不进入/退出，避免隐藏编辑区
+  if (document.body.classList.contains('screensaver')) return;
+  if (e.target.closest && e.target.closest(INTERACTIVE)) return;
+  enterScreensaver();
+});
+
+/* ==================== 初始化 ==================== */
+(async function init() {
+  await loadFileHandle();              // 浏览器模式：取回已关联的 flag_data.json 句柄
+  if (!hasFileStore && 'showOpenFilePicker' in window && !fileHandle) showLinkBanner();
+  updateNote();
+  load();
+  $('#flagDate').value = toLocalISO(addDays(new Date(), 30));
+  tick();
+  setInterval(tick, 1000);
+})();
+
+/* 若在屏保（pywebview）环境中：等待 API 就绪后切换到文件存储并重新载入数据 */
+(function waitFileStore() {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.read_flags) {
+    detectFileStore();
+    if (hasFileStore) {
+      patchSaverExit();
+      // 真实屏保环境：隐藏"进入屏保"按钮，避免误触隐藏编辑区
+      const ef = document.getElementById('enterFsBtn');
+      if (ef) ef.hidden = true;
+      const tip = document.querySelector('.enter-tip');
+      if (tip) tip.innerHTML = '✏️ 可直接点选 / 勾选 / 添加 Flag · 按 <kbd>ESC</kbd> 退出屏保';
+      showToast('✏️ 屏保已就绪：可编辑 Flag · 按 ESC 退出', 4200);
+      load();
+    }
+    return;
+  }
+  setTimeout(waitFileStore, 150);
+})();
+</script>
+</body>
+</html>

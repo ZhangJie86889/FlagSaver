@@ -1,0 +1,15 @@
+# 构建产物
+dist/
+build/
+*.spec
+__pycache__/
+
+# 打包好的可执行文件（通过 Release 分发）
+*.exe
+
+# 个人数据（不提交真实 flag 数据）
+flag_data.json
+
+# 编辑器
+.vscode/
+.idea/
