@@ -7,6 +7,19 @@
 
 ---
 
+## ⬇️ 下载（Windows 免安装）
+
+| 文件 | 说明 |
+|---|---|
+| **[FlagSaver-Windows-v1.0.0.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver-Windows-v1.0.0.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
+| [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
+
+**三步跑起来**：下载 zip → 解压到任意文件夹 → 双击 `FlagSaver.exe`。
+> 首次运行若被 Windows SmartScreen 拦截，点「详细信息 → 仍要运行」。
+> 想让它在空闲时自动弹出，见下方 [设为开机自启](#-设为开机自启)。
+
+---
+
 ## ✨ 特性
 
 - 🖥️ **全屏屏保**：空闲 5 分钟自动全屏浮现；按 `Esc` 或点 ✕ 立即隐藏
@@ -53,6 +66,20 @@ pyinstaller --onefile --noconsole --name FlagSaver saver_window.py
 ```
 
 > 打包后把 `flag.html` 和 `FlagSaver.exe` 放到**同一目录**即可使用（数据会自动生成 `flag_data.json`）。
+
+### 打 Windows 发布包
+
+```bash
+python build_zip.py     # 生成 _zip_out/FlagSaver-Windows-v1.0.0.zip（exe + flag.html + 使用说明）
+```
+
+## 🚀 设为开机自启
+
+1. `Win + R` 输入 `shell:startup` 回车，打开「启动」文件夹
+2. 给 `FlagSaver.exe` 建一个快捷方式拖进去
+3. 右键该快捷方式 → 属性 →「目标」末尾加 ` /bg`，例如：`"D:\FlagSaver\FlagSaver.exe" /bg`
+
+> 等效命令行：`reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v FlagSaver /t REG_SZ /d "\"D:\FlagSaver\FlagSaver.exe\" /bg" /f`
 
 ## 🎛️ 配置
 

@@ -2,6 +2,8 @@
 dist/
 build/
 *.spec
+_zip_stage/
+_zip_out/
 __pycache__/
 
 # 打包好的可执行文件（通过 Release 分发）
