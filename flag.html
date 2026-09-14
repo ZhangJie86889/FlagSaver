@@ -1067,6 +1067,26 @@ document.addEventListener('click', (e) => {
   setInterval(tick, 1000);
 })();
 
+/* 若配置的热键被别的软件占用、程序已自动顺延到另一个键，启动时立刻提示一次，
+   免得用户一直去按那个按不动的键（提示只在打开设置面板时才看得到是不够的）。 */
+(function notifyHotkeyFallback() {
+  let tries = 0;
+  const timer = setInterval(async () => {
+    tries++;
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.read_config) {
+      clearInterval(timer);
+      try {
+        const c = JSON.parse(await window.pywebview.api.read_config());
+        if (c.hotkey_active && c.hotkey && c.hotkey_active !== c.hotkey) {
+          showToast('⚠ 热键 ' + c.hotkey + ' 被其它程序占用，已自动改为 ' + c.hotkey_active, 6000);
+        }
+      } catch (_) {}
+    } else if (tries > 60) {
+      clearInterval(timer);
+    }
+  }, 500);
+})();
+
 /* ==================== 设置面板：空闲时间 / 全局热键 / 定时 / 开机自启 ==================== */
 const st = {
   mask: null, statusTimer: null,
@@ -1086,18 +1106,21 @@ const st = {
   },
   close() { this.mask.classList.remove('show'); this.status(''); },
   async load() {
-    let cfg = { idle_minutes: 5, hotkey: 'ctrl+alt+f', auto_time: '', autostart: false };
+    let cfg = { idle_minutes: 5, hotkey: 'ctrl+alt+g', auto_time: '', autostart: false };
     try {
       if (this.hasApi()) cfg = JSON.parse(await window.pywebview.api.read_config());
       else cfg = JSON.parse(localStorage.getItem('flagSaver.config') || 'null') || cfg;
     } catch (_) {}
     document.getElementById('stIdle').value = cfg.idle_minutes != null ? cfg.idle_minutes : 5;
-    document.getElementById('stHotkey').value = cfg.hotkey || 'ctrl+alt+g';
+    // 输入框里显示「实际生效」的热键：被其它程序占用时程序会自动顺延，
+    // 若这里还显示原来那个不可用的键，用户会以为按它就能呼出（实际按了没反应）。
+    const activeKey = cfg.hotkey_active || cfg.hotkey || 'ctrl+alt+g';
+    document.getElementById('stHotkey').value = activeKey;
     document.getElementById('stAutoTime').value = cfg.auto_time || '';
     document.getElementById('stAutostart').checked = !!cfg.autostart;
-    // 若配置的热键被系统其它软件占用，程序会自动顺延，这里提示实际生效的按键
     if (cfg.hotkey_active && cfg.hotkey && cfg.hotkey_active !== cfg.hotkey) {
-      this.status('⚠ ' + cfg.hotkey + ' 被其它程序占用，当前实际使用：' + cfg.hotkey_active, true);
+      this.status('⚠ ' + cfg.hotkey + ' 被其它程序占用，程序已自动改用 ' + cfg.hotkey_active +
+                  '。直接点「保存」即固定这个键。', true);
     }
   },
   async save() {
