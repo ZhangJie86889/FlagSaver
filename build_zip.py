@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
-"""打包 Windows 开箱即用压缩包：FlagSaver-Windows-v1.0.0.zip"""
+"""打包 Windows 开箱即用压缩包：FlagSaver-Windows-v1.1.1.zip
+
+用法：
+    python build_zip.py [源码/产物目录]
+
+目录里需要已经有打好的 FlagSaver.exe（PyInstaller 产物）以及 flag.html / README.md 等。
+不传目录时默认使用本脚本所在目录 —— 这样别人 clone 下来也能直接跑，不必改路径。
+"""
 import os
 import shutil
+import sys
 import zipfile
 
-SRC = r'D:\Desktop\个人文件\FlagSaver'
+SRC = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
 STAGE = os.path.join(SRC, '_zip_stage', 'FlagSaver-Windows')
 OUT_DIR = os.path.join(SRC, '_zip_out')
 ZIP_NAME = 'FlagSaver-Windows-v1.1.1.zip'
@@ -88,7 +96,12 @@ def main():
 
     zip_path = os.path.join(OUT_DIR, ZIP_NAME)
     if os.path.exists(zip_path):
-        os.remove(zip_path)
+        # 目录里已有旧包时先删掉。若被其它程序占用（比如正在解压）会删不掉，
+        # 这里不让它中断构建 —— 下面的 ZipFile(..., 'w') 本身就会覆盖目标文件。
+        try:
+            os.remove(zip_path)
+        except OSError as e:
+            print('  ! 旧包删除失败（%s），将直接覆盖：%s' % (type(e).__name__, zip_path))
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for root, _, files in os.walk(os.path.join(SRC, '_zip_stage')):
             for fn in files:

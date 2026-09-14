@@ -109,8 +109,10 @@ def load_config():
             for k in DEFAULT_CONFIG:
                 if k in data:
                     cfg[k] = data[k]
+    except FileNotFoundError:
+        pass        # 首次运行还没有 config.json，属正常情况，不记日志
     except Exception as e:
-        _log('load_config 失败: %r' % (e,))
+        _log('load_config 读取失败，已改用默认配置: %r' % (e,))
     return cfg
 
 
