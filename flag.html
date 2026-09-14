@@ -10,24 +10,94 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
     color-scheme: dark;
-    --bg: #0a0a1a;
-    --a1: #7c8cff;
-    --a2: #b3baff;
-    --t1: #f4f5ff;
-    --t2: rgba(232,236,255,.66);
-    --t3: rgba(232,236,255,.38);
-    --glass: rgba(255,255,255,.045);
-    --line: rgba(255,255,255,.09);
-    --danger1: #ff6b6b;
-    --danger2: #ffb36b;
+
+    /* ---- 间距：统一 4px 基准网格，组件内外边距都从这里取值 ---- */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+
+    /* ---- 圆角 ---- */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 22px;
+    --radius-pill: 99px;
+
+    /* ---- 语义色（深色底）。括号内为实测对比度，正文要求 ≥4.5:1 ---- */
+    --color-bg-primary: #0a0a1a;
+    --color-bg-elevated: #12142a;
+    --color-text-primary: #f4f5ff;                    /* ≈17:1 */
+    --color-text-secondary: rgba(232,236,255,.72);    /* ≈8.7:1 */
+    --color-text-tertiary: rgba(232,236,255,.55);     /* ≈5.5:1  ← 原来 .38 只有 3.2:1，小字不达标 */
+    --color-accent: #7c8cff;                          /* ≈6.6:1，可安全用作焦点环 */
+    --color-accent-soft: #b3baff;
+    --color-danger: #ff6b6b;                          /* ≈7.1:1 */
+    --color-warn: #ffb36b;
+    --color-success: #8be0a4;
+
+    /* ---- 边框：装饰用（不受限） vs 控件用（非文本对比度需 ≥3:1）---- */
+    --color-border: rgba(255,255,255,.09);            /* 卡片/分隔等装饰性边界 */
+    --color-border-control: rgba(255,255,255,.38);    /* 输入框等控件轮廓 ≈3.5:1 */
+    --color-border-hover: rgba(255,255,255,.26);
+
+    /* ---- 毛玻璃：统一层级；blur 控制在 10px 以内以免全屏大面积模糊拖慢渲染 ---- */
+    --glass-bg: rgba(255,255,255,.045);
+    --glass-bg-strong: rgba(16,17,38,.78);
+    --glass-border: rgba(255,255,255,.12);
+    --glass-blur: 10px;
+    --glass-saturate: 150%;
+
+    /* ---- 焦点环 ---- */
+    --focus-width: 2px;
+    --focus-offset: 2px;
+
+    /* ---- 内容区最大宽度（超宽屏下避免卡片被拉得过于稀疏）---- */
+    --content-max: 1400px;
+
+    /* 兼容旧短变量名，避免大面积改名带来的回归风险 */
+    --bg: var(--color-bg-primary);
+    --a1: var(--color-accent);
+    --a2: var(--color-accent-soft);
+    --t1: var(--color-text-primary);
+    --t2: var(--color-text-secondary);
+    --t3: var(--color-text-tertiary);
+    --glass: var(--glass-bg);
+    --line: var(--color-border);
+    --danger1: var(--color-danger);
+    --danger2: var(--color-warn);
   }
   [hidden] { display: none !important; }
   html { scrollbar-color: rgba(255,255,255,.15) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.13); border-radius: var(--radius-pill); border: 2px solid transparent; background-clip: padding-box; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::placeholder { color: rgba(232,236,255,.3); }
+  ::placeholder { color: rgba(232,236,255,.5); }
   button, input { font-family: inherit; }
+
+  /* ================= 键盘可访问性 ================= */
+  /* 所有可交互元素用同一套焦点环：2px 强调色（对底色 6.6:1，远高于 3:1 要求）
+     + 2px 外扩，保证叠在卡片/毛玻璃上依然清晰可见。
+     这里必须用 !important：下面各组件规则里的 outline:none 选择器更具体。 */
+  :focus-visible {
+    outline: var(--focus-width) solid var(--color-accent) !important;
+    outline-offset: var(--focus-offset) !important;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .skip-link {
+    position: absolute; left: var(--space-4); top: -60px; z-index: 200;
+    padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+    background: var(--color-accent); color: #0a0a1a; font-size: 13px; font-weight: 600;
+    transition: top .2s;
+  }
+  .skip-link:focus { top: var(--space-4); }
 
   body {
     background: var(--bg);
@@ -55,7 +125,7 @@
   @keyframes drift2 { to { transform: translate(-9vw, -7vh) scale(1.08); } }
   @keyframes drift3 { to { transform: translate(-12vw, 6vh) scale(.92); } }
 
-  .container { position: relative; z-index: 1; max-width: 1250px; margin: 0 auto; padding: 0 22px 80px; }
+  .container { position: relative; z-index: 1; max-width: var(--content-max); margin: 0 auto; padding: 0 var(--space-5) 80px; }
 
   /* ================= 顶部时钟 ================= */
   .clock-section { text-align: center; padding: clamp(34px, 7vh, 72px) 18px clamp(26px, 4.5vh, 52px); }
@@ -81,7 +151,9 @@
   }
 
   /* ================= Flag 卡片网格 ================= */
-  .flags-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(315px, 1fr)); gap: 22px; align-items: stretch; }
+  /* auto-fill + minmax：窄屏自然堆叠成单列，宽屏/超宽屏自动增加列数。
+     内层 min() 保证卡片不会因最小宽度而撑破窄屏。 */
+  .flags-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(315px, 100%), 1fr)); gap: var(--space-5) var(--space-5); align-items: stretch; }
 
   /* 【修改】卡片改为醒目的实体渐变背景 */
   .card {
@@ -105,9 +177,36 @@
     100% { box-shadow: 0 12px 28px -8px rgba(0,0,0,0.5); }
   }
 
-  .card.is-done { opacity: .55; border-color: rgba(255,255,255,.12); background: linear-gradient(145deg, rgba(30, 33, 50, 0.9), rgba(15, 17, 30, 0.9)); }
-  .card.is-done .flag-name, .card.is-done .flag-date, .card.is-done .done-flag { text-decoration: line-through; }
+  /* 完成态：不再整体降 opacity —— 那会把卡内小字对比度压到 4.5:1 以下（实测约 2.4:1）。
+     改为压低背景/边框的存在感 + 用次级文字色，视觉上依然是"退到后面"，但文字始终可读。 */
+  .card.is-done {
+    opacity: 1;
+    border-color: var(--color-border);
+    background: linear-gradient(145deg, rgba(28, 31, 46, 0.92), rgba(15, 17, 30, 0.92));
+  }
+  .card.is-done .flag-name { color: var(--color-text-secondary); }
+  .card.is-done .flag-name,
+  .card.is-done .flag-date,
+  .card.is-done .done-badge { text-decoration: line-through; }
   .card.is-done .progress-fill { background: linear-gradient(90deg, rgba(124,140,255,.5), rgba(179,186,255,.5)); box-shadow: none; }
+
+  /* 完成标识：颜色 + 对勾图标 + 「已完成」文字，三重表达。
+     色盲/色弱用户不依赖颜色也能识别状态。 */
+  .done-badge {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    background: rgba(124,140,255,.16);
+    border: 1px solid rgba(124,140,255,.55);
+    color: var(--color-text-primary);
+    font-size: 14px; font-weight: 500; letter-spacing: .02em;
+  }
+  .done-badge-icon {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--color-accent); color: #0a0a1a;
+    font-size: 11px; font-weight: 700; line-height: 1;
+  }
   
   .card.is-overdue { border-color: rgba(255,107,107,.5); background: linear-gradient(145deg, rgba(75, 35, 39, 0.95), rgba(40, 16, 18, 0.95)); }
   .card.is-overdue:hover { border-color: rgba(255,107,107,.8); }
@@ -115,14 +214,14 @@
   /* 卡片右上角操作按钮 */
   .card-actions { position: absolute; top: 13px; right: 13px; display: flex; gap: 6px; }
   .icon-btn {
-    width: 34px; height: 34px; border-radius: 10px;
-    border: 1px solid rgba(255,255,255,.11);
+    width: 34px; height: 34px; border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-control);
     background: rgba(255,255,255,.05);
     cursor: pointer; font-size: 14px; line-height: 1;
     display: grid; place-items: center;
     transition: background .2s, transform .2s, border-color .2s;
   }
-  .icon-btn:hover { background: rgba(255,255,255,.15); transform: scale(1.08); }
+  .icon-btn:hover { background: rgba(255,255,255,.18); transform: scale(1.08); }
   .icon-btn:active { transform: scale(.94); }
   .icon-btn.icon-danger:hover { border-color: rgba(255,107,107,.5); background: rgba(255,107,107,.13); }
 
@@ -153,12 +252,6 @@
     -webkit-text-fill-color: transparent;
   }
   .cd-unit { font-size: 15px; color: var(--t2); }
-  .done-flag {
-    font-size: 1.5rem; font-weight: 700;
-    background: linear-gradient(135deg, var(--a1), var(--a2));
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
 
   /* 进度条 */
   .progress-row { display: flex; align-items: center; gap: 12px; }
@@ -219,14 +312,15 @@
   .subtask-input {
     flex: 1; min-width: 0;
     background: rgba(0,0,0,.2);
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 10px; padding: 9px 12px;
-    color: var(--t1); font-size: 13.5px; outline: none;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+    color: var(--color-text-primary); font-size: 13.5px; outline: none;
     transition: border-color .25s;
   }
-  .subtask-input:focus { border-color: rgba(124,140,255,.55); }
+  .subtask-input:focus { border-color: var(--color-accent); }
   .subtask-add-btn {
-    padding: 9px 16px; border-radius: 10px; border: none;
+    padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+    border: 1px solid rgba(124,140,255,.5);
     background: rgba(124,140,255,.2); color: var(--a2);
     font-size: 13.5px; cursor: pointer; transition: background .2s;
   }
@@ -234,42 +328,71 @@
 
   /* ================= 底部添加区 ================= */
   .add-section {
-    display: flex; gap: 10px;
-    max-width: 760px; margin: 46px auto 0; padding: 12px;
-    border-radius: 18px;
-    background: var(--glass);
-    border: 1px solid var(--line);
-    backdrop-filter: blur(18px) saturate(150%);
-    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    display: flex; gap: var(--space-3);
+    max-width: 860px; margin: var(--space-12) auto 0; padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background: var(--glass-bg);
+    border: 1px solid var(--color-border);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   }
   @media (min-width: 561px) {
     .add-section {
-      position: sticky; bottom: 16px; z-index: 5;
-      background: rgba(16,17,38,.74);
+      position: sticky; bottom: var(--space-4); z-index: 5;
+      background: var(--glass-bg-strong);
       box-shadow: 0 24px 60px -18px rgba(0,0,0,.65);
     }
   }
+  /* 每个字段自成一列，便于把校验错误放在输入框正下方 */
+  .field { display: flex; flex-direction: column; min-width: 0; }
+  .field-name { flex: 1; }
+  .field-date { flex: 0 0 auto; }
   .add-section input {
     background: rgba(255,255,255,.055);
-    border: 1px solid rgba(255,255,255,.11);
-    border-radius: 12px; padding: 12px 15px;
-    color: var(--t1); font-size: 14.5px; outline: none;
+    border: 1px solid var(--color-border-control);   /* 控件轮廓 ≥3:1，低视力用户才看得见输入框 */
+    border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+    color: var(--color-text-primary); font-size: 14.5px; outline: none;
     transition: border-color .25s, box-shadow .25s;
   }
-  .add-section input:focus { border-color: rgba(124,140,255,.6); box-shadow: 0 0 0 3px rgba(124,140,255,.14); }
-  #flagName { flex: 1; min-width: 0; }
+  .add-section input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(124,140,255,.18); }
+  .add-section input[aria-invalid="true"] { border-color: var(--color-danger); }
+  #flagName { width: 100%; }
   #flagDate { width: 152px; flex-shrink: 0; }
   .add-btn {
-    padding: 12px 22px; border: none; border-radius: 12px;
+    align-self: flex-start;
+    padding: var(--space-3) var(--space-5); border: none; border-radius: var(--radius-md);
     background: linear-gradient(135deg, var(--a1), var(--a2));
     color: #0b0c20; font-size: 14.5px; font-weight: 700; cursor: pointer;
     white-space: nowrap; letter-spacing: .02em;
-    transition: transform .2s, box-shadow .25s;
+    transition: transform .2s, box-shadow .25s, background .2s, color .2s;
   }
   .add-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -6px rgba(124,140,255,.5); }
   .add-btn:active { transform: translateY(0); }
-  .storage-note { text-align: center; color: rgba(232,236,255,.26); font-size: 12px; letter-spacing: .06em; margin: 14px 0 0; }
-  .empty-state { text-align: center; color: var(--t3); font-size: 15px; line-height: 2.1; padding: 48px 16px; letter-spacing: .03em; }
+  /* 禁用态：换成实体弱底 + 次级文字色，而不是降 opacity（降透明度会连文字一起变糊） */
+  .add-btn:disabled, .st-btn:disabled {
+    background: rgba(255,255,255,.10); color: var(--color-text-tertiary);
+    border: 1px solid var(--color-border-control);
+    cursor: not-allowed; transform: none; box-shadow: none; filter: none;
+  }
+
+  /* 内联校验错误：写在字段正下方，比弹 toast 更容易定位到是哪个字段出错 */
+  .field-error {
+    display: flex; align-items: flex-start; gap: var(--space-1);
+    margin-top: var(--space-2); padding-left: var(--space-1);
+    font-size: 12.5px; line-height: 1.5; color: var(--color-danger);
+  }
+
+  /* 快捷键提示 */
+  .kbd-hint { font-size: 11.5px; color: var(--color-text-tertiary); letter-spacing: .02em; margin-top: var(--space-2); padding-left: var(--space-1); }
+  .kbd-hint-center { text-align: center; padding-left: 0; margin-top: var(--space-3); }
+  .kbd-hint kbd, .st-actions-hint kbd {
+    font-family: inherit; font-size: 11px; padding: 1px 6px 2px; margin: 0 2px;
+    border-radius: 6px; border: 1px solid rgba(255,255,255,.26); background: rgba(255,255,255,.08);
+    color: var(--color-text-secondary);
+  }
+
+  .storage-note { text-align: center; color: var(--color-text-tertiary); font-size: 12px; letter-spacing: .06em; margin: var(--space-4) 0 0; }
+  .empty-state { text-align: center; color: var(--t3); font-size: 15px; line-height: 2.1; padding: var(--space-12) var(--space-4); letter-spacing: .03em; }
 
   /* 校验抖动 */
   .invalid { border-color: rgba(255,107,107,.75) !important; animation: shakeX .45s ease; }
@@ -281,31 +404,31 @@
 
   /* ================= 右上角按钮 / 提示 ================= */
   .corner-btn {
-    position: fixed; top: 18px; right: 20px; z-index: 60;
-    height: 42px; min-width: 42px; padding: 0 18px;
-    border-radius: 99px;
-    border: 1px solid rgba(255,255,255,.14);
+    position: fixed; top: var(--space-4); right: var(--space-5); z-index: 60;
+    height: 42px; min-width: 42px; padding: 0 var(--space-4);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border-control);
     background: rgba(255,255,255,.06);
-    color: rgba(255,255,255,.8); font-size: 14px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 7px;
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    color: var(--color-text-secondary); font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
     transition: background .25s, color .25s, transform .2s, opacity .3s;
     letter-spacing: .02em;
   }
-  .corner-btn:hover { background: rgba(255,255,255,.14); color: #fff; transform: translateY(-1px); }
+  .corner-btn:hover { background: rgba(255,255,255,.16); color: #fff; transform: translateY(-1px); }
   .corner-btn:active { transform: translateY(0) scale(.96); }
   #exitFsBtn { padding: 0; width: 42px; display: none; opacity: .6; }
   body.screensaver #exitFsBtn { display: flex; }
   #exitFsBtn:hover { opacity: 1; }
 
   .fs-toast {
-    position: fixed; top: 22px; left: 50%; z-index: 50;
+    position: fixed; top: var(--space-5); left: 50%; z-index: 50;
     transform: translateX(-50%) translateY(-14px);
-    padding: 10px 22px; border-radius: 99px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.12);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    color: var(--t2); font-size: 13.5px; letter-spacing: .06em;
+    padding: var(--space-2) var(--space-5); border-radius: var(--radius-pill);
+    background: rgba(20,22,46,.92);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+    color: var(--color-text-primary); font-size: 13.5px; letter-spacing: .04em;
     opacity: 0; pointer-events: none;
     transition: opacity .5s, transform .5s;
     max-width: 86vw; text-align: center;
@@ -340,32 +463,35 @@
   .st-row { margin-bottom: 16px; }
   .st-row label { display: block; font-size: 13px; color: var(--t2); margin-bottom: 7px; letter-spacing: .04em; }
   .st-row input[type="text"], .st-row input[type="number"], .st-row input[type="time"] {
-    width: 100%; height: 42px; padding: 0 14px;
-    border-radius: 12px; border: 1px solid rgba(255,255,255,.14);
-    background: rgba(255,255,255,.05); color: var(--t1); font-size: 14px; outline: none;
+    width: 100%; height: 42px; padding: 0 var(--space-4);
+    border-radius: var(--radius-md); border: 1px solid var(--color-border-control);
+    background: rgba(255,255,255,.05); color: var(--color-text-primary); font-size: 14px; outline: none;
     transition: border-color .2s, background .2s;
   }
-  .st-row input:focus { border-color: rgba(124,140,255,.7); background: rgba(255,255,255,.08); }
-  .st-hint { font-size: 11.5px; color: var(--t3); margin-top: 6px; line-height: 1.6; }
-  .st-check { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-  .st-check input { width: 18px; height: 18px; accent-color: #7c8cff; cursor: pointer; }
+  .st-row input:focus { border-color: var(--color-accent); background: rgba(255,255,255,.09); }
+  .st-row input[aria-invalid="true"] { border-color: var(--color-danger); }
+  .st-hint { font-size: 11.5px; color: var(--color-text-tertiary); margin-top: var(--space-2); line-height: 1.6; }
+  .st-check { display: flex; align-items: center; gap: var(--space-3); cursor: pointer; user-select: none; }
+  .st-check input { width: 18px; height: 18px; accent-color: var(--color-accent); cursor: pointer; }
   .st-check span { font-size: 13.5px; color: var(--t2); }
-  .st-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .st-actions { display: flex; gap: var(--space-3); margin-top: var(--space-6); }
   .st-btn {
-    flex: 1; height: 42px; border-radius: 12px; cursor: pointer;
+    flex: 1; height: 42px; border-radius: var(--radius-md); cursor: pointer;
     font-size: 14px; letter-spacing: .05em; border: 1px solid transparent;
-    transition: transform .18s, filter .18s, background .18s;
+    transition: transform .18s, filter .18s, background .18s, color .18s;
   }
   .st-btn:active { transform: scale(.97); }
   .st-btn-primary {
     background: linear-gradient(135deg, #6b7bff, #8f7bff); color: #fff; font-weight: 600;
   }
-  .st-btn-primary:hover { filter: brightness(1.1); }
+  .st-btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
   .st-btn-ghost {
-    background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); color: var(--t2);
+    background: rgba(255,255,255,.05); border-color: var(--color-border-control); color: var(--t2);
   }
-  .st-btn-ghost:hover { background: rgba(255,255,255,.1); color: #fff; }
-  .st-status { margin-top: 12px; font-size: 12.5px; text-align: center; min-height: 17px; color: #8be0a4; }
+  .st-btn-ghost:hover { background: rgba(255,255,255,.12); color: #fff; }
+  .st-status { margin-top: var(--space-3); font-size: 12.5px; text-align: center; min-height: 17px; color: var(--color-success); }
+  .st-status[data-tone="error"] { color: var(--color-danger); }
+  .st-actions-hint { margin-top: var(--space-3); font-size: 11.5px; color: var(--color-text-tertiary); text-align: center; }
 
   /* ================= 【修改】屏保模式纯黑背景覆盖 ================= */
   body.screensaver {
@@ -387,7 +513,7 @@
     z-index: 70; display: flex; align-items: center; gap: 12px;
     padding: 11px 16px; border-radius: 14px;
     background: rgba(20, 22, 46, .92); border: 1px solid rgba(124, 140, 255, .4);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
     color: var(--t2); font-size: 13.5px; letter-spacing: .02em;
     box-shadow: 0 18px 44px -16px rgba(0, 0, 0, .6);
     max-width: 92vw;
@@ -403,26 +529,34 @@
   }
 
   /* ================= 响应式 ================= */
+  /* 卡片列数由 grid 的 auto-fill + minmax 自适应，这里只处理真正需要换结构的几个断点。
+     超宽屏（≥1600px）下靠 --content-max 限制内容宽度并居中，避免卡片被拉得过散。 */
   @media (max-width: 700px) {
     .flags-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 560px) {
-    .container { padding: 0 14px 60px; }
+    .container { padding: 0 var(--space-3) 60px; }
     .clock-section { padding-top: 66px; }
-    .corner-btn { top: 12px; right: 12px; height: 38px; }
-    #enterFsBtn { padding: 0 12px; }
+    .corner-btn { top: var(--space-3); right: var(--space-3); height: 38px; }
+    #enterFsBtn { padding: 0 var(--space-3); }
     #enterFsBtn .btn-label { display: none; }
-    .add-section { flex-direction: column; gap: 8px; }
+    .add-section { flex-direction: column; gap: var(--space-2); }
+    .add-btn { align-self: stretch; }
     #flagDate { width: 100%; }
-    .card { padding: 20px 18px 16px; }
+    .kbd-hint { display: none; }
+    .card { padding: var(--space-5) var(--space-4) var(--space-4); }
     .flag-name { padding-right: 64px; font-size: 17px; }
   }
+
+  /* 尊重系统「减少动态效果」：关闭背景光晕漂移、卡片入场、进度条动画等非必要动效 */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: .01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
     }
+    .orb { animation: none !important; }
   }
 </style>
 </head>
@@ -431,10 +565,12 @@
   <div class="orb orb-2" aria-hidden="true"></div>
   <div class="orb orb-3" aria-hidden="true"></div>
 
+  <a class="skip-link" href="#flagsGrid">跳到 Flag 列表</a>
+
   <button class="corner-btn no-fs" id="enterFsBtn" title="进入屏保模式">⛶ <span class="btn-label">屏保模式</span></button>
-  <button class="corner-btn" id="settingsBtn" title="设置（空闲时间 / 全局热键 / 定时）">⚙</button>
+  <button class="corner-btn" id="settingsBtn" title="设置（空闲时间 / 全局热键 / 定时）" aria-label="打开设置" aria-haspopup="dialog">⚙</button>
   <button class="corner-btn" id="exitFsBtn" title="退出屏保" aria-label="退出屏保">✕</button>
-  <div class="fs-toast" id="fsToast"></div>
+  <div class="fs-toast" id="fsToast" role="status" aria-live="polite"></div>
 
   <div class="st-mask" id="stMask" role="dialog" aria-modal="true" aria-label="设置">
     <div class="st-panel">
@@ -443,19 +579,22 @@
 
       <div class="st-row">
         <label for="stIdle">空闲多久自动弹出（分钟，0 = 关闭）</label>
-        <input type="number" id="stIdle" min="0" max="1440" step="0.5" value="5">
-        <div class="st-hint">用 Windows 系统空闲计时（GetLastInputInfo），键盘鼠标不动才算空闲。</div>
+        <input type="number" id="stIdle" min="0" max="1440" step="0.5" value="5" aria-describedby="stIdleHint">
+        <div class="st-hint" id="stIdleHint">用 Windows 系统空闲计时（GetLastInputInfo），键盘鼠标不动才算空闲。</div>
+        <p class="field-error" id="stIdleErr" role="alert" hidden></p>
       </div>
 
       <div class="st-row">
         <label for="stHotkey">全局热键（Windows 系统级，任何界面可呼出）</label>
-        <input type="text" id="stHotkey" value="ctrl+alt+g" placeholder="例如 ctrl+alt+g">
-        <div class="st-hint">组合键用 + 连接，支持 ctrl / alt / shift / win + 字母、数字或 F1–F12。<br>按下即显示，再按一次隐藏。示例：ctrl+alt+g、win+shift+g<br>若该组合已被其它软件占用，会自动顺延到下一个可用组合（可在 config.json 旁的 flagsaver.log 查看）。</div>
+        <input type="text" id="stHotkey" value="ctrl+alt+g" placeholder="例如 ctrl+alt+g" aria-describedby="stHotkeyHint">
+        <div class="st-hint" id="stHotkeyHint">组合键用 + 连接，支持 ctrl / alt / shift / win + 字母、数字或 F1–F12。<br>按下即显示，再按一次隐藏。示例：ctrl+alt+g、win+shift+g<br>若该组合已被其它软件占用，会自动顺延到下一个可用组合（可在 config.json 旁的 flagsaver.log 查看）。</div>
+        <p class="field-error" id="stHotkeyErr" role="alert" hidden></p>
       </div>
 
       <div class="st-row">
         <label for="stAutoTime">每天定时弹出（留空关闭）</label>
         <input type="text" id="stAutoTime" value="" placeholder="例如 22:30">
+        <p class="field-error" id="stAutoTimeErr" role="alert" hidden></p>
       </div>
 
       <div class="st-row">
@@ -465,9 +604,10 @@
 
       <div class="st-actions">
         <button class="st-btn st-btn-ghost" id="stCancel">取消</button>
-        <button class="st-btn st-btn-primary" id="stSave">保存</button>
+        <button class="st-btn st-btn-primary" id="stSave" disabled>保存</button>
       </div>
-      <div class="st-status" id="stStatus"></div>
+      <div class="st-actions-hint">按 <kbd>Enter</kbd> 保存 · 按 <kbd>Esc</kbd> 关闭（有未保存改动时会先确认）</div>
+      <div class="st-status" id="stStatus" role="status" aria-live="polite"></div>
     </div>
   </div>
   <div class="link-banner no-fs" id="linkBanner" hidden>
@@ -490,10 +630,20 @@
     </p>
 
     <footer class="add-section no-fs">
-      <input type="text" id="flagName" maxlength="40" placeholder="输入新 Flag，如：通过 CPA 考试" autocomplete="off">
-      <input type="date" id="flagDate" title="截止日期">
+      <div class="field field-name">
+        <label class="sr-only" for="flagName">新 Flag 名称</label>
+        <input type="text" id="flagName" maxlength="40" placeholder="输入新 Flag，如：通过 CPA 考试"
+               autocomplete="off" aria-describedby="flagNameErr">
+        <p class="field-error" id="flagNameErr" role="alert" hidden></p>
+      </div>
+      <div class="field field-date">
+        <label class="sr-only" for="flagDate">截止日期</label>
+        <input type="date" id="flagDate" title="截止日期" aria-describedby="flagDateErr">
+        <p class="field-error" id="flagDateErr" role="alert" hidden></p>
+      </div>
       <button class="add-btn" id="addFlagBtn">＋ 添加</button>
     </footer>
+    <p class="kbd-hint kbd-hint-center no-fs">在输入框里按 <kbd>Enter</kbd> 可直接添加 · 按 <kbd>ESC</kbd> 进入屏保</p>
     <p class="storage-note no-fs">数据自动保存在本浏览器 · 不上传任何服务器</p>
   </main>
 
@@ -788,7 +938,8 @@ function cardHTML(flag, idx) {
 
   let countdown;
   if (flag.completed) {
-    countdown = `<span class="done-flag">🎉 已完成</span>`;
+    /* 完成标识不只用颜色：对勾图标 + 「已完成」文字，色盲/色弱用户同样能识别 */
+    countdown = `<span class="done-badge"><span class="done-badge-icon" aria-hidden="true">✓</span>已完成</span>`;
   } else if (isNaN(days)) {
     countdown = `<span class="cd-label">日期无效</span>`;
   } else if (days > 0) {
@@ -806,25 +957,33 @@ function cardHTML(flag, idx) {
   return `
   <article class="${cls.join(' ')}" data-id="${flag.id}"${style}>
     <div class="card-actions no-fs">
-      <button class="icon-btn" data-action="toggle-done" title="${flag.completed ? '取消完成' : '标记为已完成'}">${flag.completed ? '↩️' : '✅'}</button>
-      <button class="icon-btn icon-danger" data-action="delete" title="删除该 Flag">🗑️</button>
+      <button class="icon-btn" data-action="toggle-done"
+              title="${flag.completed ? '取消完成' : '标记为已完成'}"
+              aria-label="${flag.completed ? '取消完成' : '标记为已完成'}：${esc(flag.name)}">${flag.completed ? '↩️' : '✅'}</button>
+      <button class="icon-btn icon-danger" data-action="delete" title="删除该 Flag"
+              aria-label="删除：${esc(flag.name)}">🗑️</button>
     </div>
     <h2 class="flag-name">${esc(flag.name)}</h2>
     <p class="flag-date">🎯 截止 ${esc(flag.date)}</p>
     <div class="countdown">${countdown}</div>
     <div class="progress-row">
-      <div class="progress-bar"><div class="progress-fill" data-pct="${pct}"></div></div>
+      <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+           aria-valuenow="${pct}" aria-label="「${esc(flag.name)}」子任务完成度">
+        <div class="progress-fill" data-pct="${pct}"></div>
+      </div>
       <span class="progress-text">${progressLabel}</span>
     </div>
-    <button class="toggle-subtasks${expanded ? ' expanded' : ''}" data-action="toggle-expand">
+    <button class="toggle-subtasks${expanded ? ' expanded' : ''}" data-action="toggle-expand"
+            aria-expanded="${expanded}" aria-controls="subs-${flag.id}">
       <span>📋 子任务${total ? ` · ${doneCount}/${total}` : ''}</span>
-      <span class="chevron">▾</span>
+      <span class="chevron" aria-hidden="true">▾</span>
     </button>
-    <div class="subtask-panel${expanded ? ' open' : ''}">
+    <div class="subtask-panel${expanded ? ' open' : ''}" id="subs-${flag.id}">
       <div class="subtask-inner">
         <ul class="subtask-list">${subs}</ul>
         <div class="subtask-add-row no-fs">
-          <input type="text" class="subtask-input" placeholder="添加子任务…" maxlength="60">
+          <input type="text" class="subtask-input" placeholder="添加子任务…" maxlength="60"
+                 aria-label="为「${esc(flag.name)}」添加子任务">
           <button class="subtask-add-btn" data-action="add-subtask">添加</button>
         </div>
       </div>
@@ -894,26 +1053,70 @@ function hideToast() {
 })();
 
 /* ==================== 添加 Flag ==================== */
+/* 内联校验：错误信息显示在对应输入框正下方，而不是只在顶部弹一句 toast
+   —— 用户能立刻知道是哪个字段出了问题。 */
+function setFieldError(inputEl, errEl, msg) {
+  if (!inputEl || !errEl) return;
+  const has = !!msg;
+  errEl.textContent = has ? msg : '';
+  errEl.hidden = !has;
+  if (has) inputEl.setAttribute('aria-invalid', 'true');
+  else inputEl.removeAttribute('aria-invalid');
+  if (has) shake(inputEl);
+}
+function clearFieldError(inputEl, errEl) { setFieldError(inputEl, errEl, ''); }
+
+/* 校验截止日期，返回错误文案或空字符串 */
+function dateFieldError(date) {
+  if (!date) return '请选择截止日期';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '日期格式不对，请重新选择';
+  const left = getDaysLeft(date);
+  if (isNaN(left)) return '这个日期无法识别，请重新选择';
+  if (left < 0) return '截止日期不能早于今天（今天是 ' + toLocalISO(new Date()) + '）';
+  return '';
+}
+
+function validateFlagForm() {
+  const nameEl = $('#flagName'), dateEl = $('#flagDate');
+  const nameErr = $('#flagNameErr'), dateErr = $('#flagDateErr');
+  clearFieldError(nameEl, nameErr);
+  clearFieldError(dateEl, dateErr);
+
+  let firstBad = null;
+  if (!nameEl.value.trim()) { setFieldError(nameEl, nameErr, '请填写 Flag 名称'); firstBad = nameEl; }
+  const dErr = dateFieldError(dateEl.value);
+  if (dErr) { setFieldError(dateEl, dateErr, dErr); firstBad = firstBad || dateEl; }
+  return firstBad;
+}
+
 function addFlag() {
   const nameEl = $('#flagName'), dateEl = $('#flagDate');
-  const name = nameEl.value.trim();
-  const date = dateEl.value;
-  if (!name || !date) {
-    if (!name) shake(nameEl);
-    if (!date) shake(dateEl);
-    showToast('⚠️ 请填写 Flag 名称和截止日期');
-    return;
-  }
-  const f = { id: uid(), name, date, completed: false, subtasks: [] };
+  const firstBad = validateFlagForm();
+  if (firstBad) { firstBad.focus(); return; }
+
+  const f = { id: uid(), name: nameEl.value.trim(), date: dateEl.value, completed: false, subtasks: [] };
   flags.push(f);
   highlightId = f.id;
   save();
   render();
-  showToast('✅ 已添加「' + name + '」');
+  showToast('✅ 已添加「' + f.name + '」');
   nameEl.value = '';
+  clearFieldError(dateEl, $('#flagDateErr'));
   nameEl.focus();
 }
 $('#addFlagBtn').addEventListener('click', addFlag);
+
+/* 输入时清掉本字段的错误；离开字段时若已填内容则立刻校验一次
+   （空字段不在失焦时报错，避免只是 Tab 经过就被红字追着跑，提交时会统一校验） */
+$('#flagName').addEventListener('input', () => clearFieldError($('#flagName'), $('#flagNameErr')));
+$('#flagName').addEventListener('blur', () => {
+  if ($('#flagName').value.trim()) clearFieldError($('#flagName'), $('#flagNameErr'));
+});
+$('#flagDate').addEventListener('input', () => clearFieldError($('#flagDate'), $('#flagDateErr')));
+$('#flagDate').addEventListener('change', () => {
+  const el = $('#flagDate'); if (!el.value) return;
+  setFieldError(el, $('#flagDateErr'), dateFieldError(el.value));
+});
 
 /* ==================== 卡片区事件委托 ==================== */
 flagsGrid.addEventListener('click', (e) => {
@@ -1090,49 +1293,134 @@ document.addEventListener('click', (e) => {
 /* ==================== 设置面板：空闲时间 / 全局热键 / 定时 / 开机自启 ==================== */
 const st = {
   mask: null, statusTimer: null,
+  _baseline: null,     // 打开面板时的初始值，用来判断「有没有未保存的改动」
+  _lastFocus: null,    // 打开面板前焦点在哪，关闭后还原
+  _saving: false,
+
   hasApi() { return !!(window.pywebview && window.pywebview.api && window.pywebview.api.read_config); },
   toast(msg) { try { showToast(msg, 2600); } catch (_) {} },
+  $id(id) { return document.getElementById(id); },
+
+  /* 表单当前值：保存与脏检查都走这里，避免两处逻辑不一致 */
+  read() {
+    return {
+      idle_minutes: parseFloat(this.$id('stIdle').value),
+      hotkey: (this.$id('stHotkey').value || '').trim().toLowerCase(),
+      auto_time: (this.$id('stAutoTime').value || '').trim(),
+      autostart: !!this.$id('stAutostart').checked
+    };
+  },
+
   status(msg, ok) {
-    const el = document.getElementById('stStatus');
+    const el = this.$id('stStatus');
     if (!el) return;
     el.textContent = msg || '';
-    el.style.color = ok === false ? '#ff8f8f' : '#8be0a4';
+    el.dataset.tone = ok === false ? 'error' : 'ok';   // 颜色交给 CSS，成功/失败语义统一
     clearTimeout(this.statusTimer);
-    if (msg) this.statusTimer = setTimeout(() => { el.textContent = ''; }, 3200);
+    if (msg) this.statusTimer = setTimeout(() => { el.textContent = ''; }, 3600);
   },
+
+  setErr(inputId, errId, msg) {
+    const i = this.$id(inputId), e = this.$id(errId);
+    if (!e) return;
+    e.textContent = msg || '';
+    e.hidden = !msg;
+    if (i) { if (msg) i.setAttribute('aria-invalid', 'true'); else i.removeAttribute('aria-invalid'); }
+  },
+  clearErrs() {
+    [['stIdle', 'stIdleErr'], ['stHotkey', 'stHotkeyErr'], ['stAutoTime', 'stAutoTimeErr']]
+      .forEach(pair => this.setErr(pair[0], pair[1], ''));
+  },
+
+  /* 保存前统一校验，返回第一个出错字段的 id */
+  validate() {
+    this.clearErrs();
+    const v = this.read();
+    let firstBad = null;
+    if (isNaN(v.idle_minutes) || v.idle_minutes < 0) {
+      this.setErr('stIdle', 'stIdleErr', '请填 0 或更大的数字（0 = 关闭空闲弹出）');
+      firstBad = firstBad || 'stIdle';
+    }
+    const hkErr = hotkeyFormatError(v.hotkey);
+    if (hkErr) { this.setErr('stHotkey', 'stHotkeyErr', hkErr); firstBad = firstBad || 'stHotkey'; }
+    if (v.auto_time && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(v.auto_time)) {
+      this.setErr('stAutoTime', 'stAutoTimeErr', '时间格式不对，请写成 22:30（留空则不启用）');
+      firstBad = firstBad || 'stAutoTime';
+    }
+    return firstBad;
+  },
+
+  isDirty() {
+    if (!this._baseline) return false;
+    return JSON.stringify(this.read()) !== JSON.stringify(this._baseline);
+  },
+  /* 没有任何改动时「保存」保持禁用：避免"点了保存却什么都没变"的困惑 */
+  updateSaveState() {
+    const btn = this.$id('stSave');
+    if (!btn) return;
+    if (this._saving) { btn.disabled = true; return; }
+    btn.disabled = !this.isDirty();
+  },
+
   open() {
+    this._lastFocus = document.activeElement;
     this.mask.classList.add('show');
-    this.load();
+    this.load().then(() => {
+      const first = this.$id('stIdle');
+      if (first) first.focus();       // 打开就把焦点放进面板，键盘用户不用先 Tab 一圈
+    });
   },
-  close() { this.mask.classList.remove('show'); this.status(''); },
+  close() {
+    this.mask.classList.remove('show');
+    this.status('');
+    this.clearErrs();
+    // 焦点还原到打开面板的那个按钮，Tab 顺序不会断在原地
+    if (this._lastFocus && typeof this._lastFocus.focus === 'function') this._lastFocus.focus();
+  },
+  /* 取消：有未保存改动时先确认，避免误触丢配置 */
+  cancel() {
+    if (this.isDirty() && !window.confirm('有未保存的修改，确定要放弃吗？')) return;
+    this.close();
+  },
+
   async load() {
     let cfg = { idle_minutes: 5, hotkey: 'ctrl+alt+g', auto_time: '', autostart: false };
     try {
       if (this.hasApi()) cfg = JSON.parse(await window.pywebview.api.read_config());
       else cfg = JSON.parse(localStorage.getItem('flagSaver.config') || 'null') || cfg;
     } catch (_) {}
-    document.getElementById('stIdle').value = cfg.idle_minutes != null ? cfg.idle_minutes : 5;
     // 输入框里显示「实际生效」的热键：被其它程序占用时程序会自动顺延，
     // 若这里还显示原来那个不可用的键，用户会以为按它就能呼出（实际按了没反应）。
     const activeKey = cfg.hotkey_active || cfg.hotkey || 'ctrl+alt+g';
-    document.getElementById('stHotkey').value = activeKey;
-    document.getElementById('stAutoTime').value = cfg.auto_time || '';
-    document.getElementById('stAutostart').checked = !!cfg.autostart;
+    this.$id('stIdle').value = cfg.idle_minutes != null ? cfg.idle_minutes : 5;
+    this.$id('stHotkey').value = activeKey;
+    this.$id('stAutoTime').value = cfg.auto_time || '';
+    this.$id('stAutostart').checked = !!cfg.autostart;
+    this.clearErrs();
+    this._baseline = this.read();
+    this.updateSaveState();
     if (cfg.hotkey_active && cfg.hotkey && cfg.hotkey_active !== cfg.hotkey) {
       this.status('⚠ ' + cfg.hotkey + ' 被其它程序占用，程序已自动改用 ' + cfg.hotkey_active +
                   '。直接点「保存」即固定这个键。', true);
+    } else {
+      this.status('');
     }
   },
+
   async save() {
-    const payload = {
-      idle_minutes: parseFloat(document.getElementById('stIdle').value) || 0,
-      hotkey: (document.getElementById('stHotkey').value || '').trim().toLowerCase(),
-      auto_time: (document.getElementById('stAutoTime').value || '').trim(),
-      autostart: document.getElementById('stAutostart').checked
-    };
-    if (payload.auto_time && !/^\d{1,2}:\d{2}$/.test(payload.auto_time)) {
-      this.status('定时格式不对，请写成 22:30', false); return;
-    }
+    if (this._saving) return;                    // 防止重复点击
+    const firstBad = this.validate();
+    if (firstBad) { const el = this.$id(firstBad); if (el) el.focus(); return; }
+
+    const btn = this.$id('stSave');
+    const cancelBtn = this.$id('stCancel');
+    const label = btn ? btn.textContent : '保存';
+    this._saving = true;
+    if (btn) btn.textContent = '保存中…';         // 提交中给出明确反馈
+    this.updateSaveState();
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    const payload = this.read();
     try {
       if (this.hasApi()) {
         await window.pywebview.api.write_config(JSON.stringify(payload));
@@ -1140,26 +1428,94 @@ const st = {
       } else {
         localStorage.setItem('flagSaver.config', JSON.stringify(payload));
       }
+      this._baseline = this.read();
+      this._saving = false;
+      if (btn) btn.textContent = label;
+      if (cancelBtn) cancelBtn.disabled = false;
       this.status('✓ 已保存，立即生效');
       this.toast('⚙ 设置已保存');
+      this.updateSaveState();
       setTimeout(() => this.close(), 900);
     } catch (e) {
+      this._saving = false;
+      if (btn) btn.textContent = label;
+      if (cancelBtn) cancelBtn.disabled = false;
+      this.updateSaveState();
       this.status('保存失败：' + (e && e.message ? e.message : e), false);
     }
   }
 };
+
+/* 与后端 parse_hotkey() 对齐的格式校验：尽早发现写错的组合键 */
+function hotkeyFormatError(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (!s) return '请填写一个热键组合，例如 ctrl+alt+g';
+  const parts = s.split(/[+\s]+/).filter(Boolean);
+  if (parts.length < 2) return '至少要有「修饰键 + 按键」，例如 ctrl+alt+g';
+  const MODS = ['ctrl', 'control', 'alt', 'menu', 'shift', 'win', 'super', 'meta'];
+  let hasMod = false, hasKey = false;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (MODS.indexOf(p) >= 0) { hasMod = true; continue; }
+    if (/^[a-z0-9]$/.test(p) || /^f([1-9]|1\d|2[0-4])$/.test(p)) { hasKey = true; continue; }
+    return '不认识「' + p + '」，只支持字母、数字、F1–F24';
+  }
+  if (!hasMod) return '缺少修饰键（ctrl / alt / shift / win）';
+  if (!hasKey) return '缺少主按键（字母、数字或 F1–F24）';
+  return '';
+}
 (function bindSettings() {
   st.mask = document.getElementById('stMask');
+  const saveBtn = document.getElementById('stSave');
+
   document.getElementById('settingsBtn').addEventListener('click', () => st.open());
-  document.getElementById('stCancel').addEventListener('click', () => st.close());
-  document.getElementById('stSave').addEventListener('click', () => st.save());
-  st.mask.addEventListener('click', (e) => { if (e.target === st.mask) st.close(); });
+  document.getElementById('stCancel').addEventListener('click', () => st.cancel());
+  saveBtn.addEventListener('click', () => st.save());
+  st.mask.addEventListener('click', (e) => { if (e.target === st.mask) st.cancel(); });
+
+  /* 任意改动 → 重新计算「保存」是否可点 */
+  ['stIdle', 'stHotkey', 'stAutoTime', 'stAutostart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => st.updateSaveState());
+    el.addEventListener('change', () => st.updateSaveState());
+  });
+  /* 一动手就清掉该字段的旧错误 */
+  ['stIdle', 'stHotkey', 'stAutoTime'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => st.setErr(id, id + 'Err', ''));
+  });
+  /* 热键填完离开字段时立刻校验，不必等到点保存 */
+  const hkEl = document.getElementById('stHotkey');
+  if (hkEl) hkEl.addEventListener('blur', () => {
+    if (hkEl.value.trim()) st.setErr('stHotkey', 'stHotkeyErr', hotkeyFormatError(hkEl.value));
+  });
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && st.mask.classList.contains('show')) {
-      st.close();
+    if (!st.mask.classList.contains('show')) return;
+
+    if (e.key === 'Escape') {
+      st.cancel();
       // 阻止后续监听（屏保的 Esc 退出）继续响应，避免关设置时把屏保也关了
       e.stopImmediatePropagation();
       e.preventDefault();
+      return;
+    }
+    /* Enter = 保存（焦点在按钮上时交给按钮自身的默认行为） */
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229
+        && e.target && e.target.tagName !== 'BUTTON') {
+      e.preventDefault();
+      st.save();
+      return;
+    }
+    /* 焦点陷阱：Tab 在面板内循环，不会跳到背后页面的元素上 */
+    if (e.key === 'Tab') {
+      const nodes = st.mask.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled), [href], select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!nodes.length) return;
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
   }, true);
 })();
