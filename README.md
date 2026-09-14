@@ -11,12 +11,12 @@
 
 | 文件 | 说明 |
 |---|---|
-| **[FlagSaver-Windows-v1.1.0.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver-Windows-v1.1.0.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
-| [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
-| [v1.0.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.0.0) | 旧版（无设置面板/热键），需要可回退 |
+| **[FlagSaver-Windows-v1.1.1.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.1/FlagSaver-Windows-v1.1.1.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
+| [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.1/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
+| [v1.1.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.1.0) / [v1.0.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.0.0) | 旧版，需要时可回退 |
 
 **三步跑起来**：下载 zip → 解压到任意文件夹 → 双击 `FlagSaver.exe`。
-> 首次运行若被 Windows SmartScreen 拦截，点「详细信息 → 仍要运行」。
+> 首次运行若被 Windows SmartScreen / 智能应用控制拦截，见下方 [双击 exe 没反应](#-设置面板--关联-windows-系统)。
 > 想让它在空闲时自动弹出，见下方 [设为开机自启](#-设为开机自启)。
 
 ---
