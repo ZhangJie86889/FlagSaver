@@ -21,6 +21,18 @@ Flag 倒计时 · 普通全屏窗口版（非系统屏保 .scr）
 
 与 flag.html 的对接 JS API：
   read_flags / write_flags / quit_saver / read_config / write_config / set_autostart
+
+v1.1.1 修复（详见 PR ./CHANGELOG_v1.1.1.md）：
+  ① 重复双击不再「静默失败」：程序已在后台运行时，第二次双击会通知已有实例把窗口
+     呼出来（命名事件），而不是直接 sys.exit(0) 什么都不提示；
+  ② 热键线程只负责收消息，窗口显隐交给单独线程串行执行 —— 窗口调用万一卡住也不会
+     让热键永久失效；且所有窗口操作带超时保护；
+  ③ 所有 except 不再静默吞掉，一律写入日志；日志补上日期（原来只有时分秒，跨天没法查）；
+  ④ 热键被占用自动顺延时，把实际生效的键写回 config.json 并记录，设置面板显示真实键；
+  ⑤ 单实例互斥量由 Global\\ 改为 Local\\（Global 命名对象在非管理员下可能创建失败，
+     导致单实例保护形同虚设）；
+  ⑥ 顺延备选热键换成 Win+Shift / Ctrl+Shift / F9 这类冷门组合（原表里 ctrl+alt+d/s/1
+     等在很多软件和输入法里都被占用，顺延过去基本等于白试）。
 """
 import os
 import re
@@ -32,6 +44,9 @@ import threading
 import winreg
 
 import webview
+
+APP_VERSION = '1.1.1'
+WINDOW_TITLE = 'Flag 倒计时'
 
 # 命令行模式：
 #   FlagSaver.exe            -> 手动运行：启动后立即全屏弹出
@@ -49,17 +64,35 @@ HTML_PATH = os.path.join(BASE_DIR, 'flag.html')
 JSON_PATH = os.path.join(BASE_DIR, 'flag_data.json')
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.json')
 
+
+# ---------------- 日志（排障用，写程序目录 flagsaver.log） ----------------
+# 必须先于 load_config 定义：配置读写失败时要用它记日志。
+LOG_PATH = os.path.join(BASE_DIR, 'flagsaver.log')
+
+
+def _log(msg):
+    """带日期的日志。原来只写时分秒，跨天根本没法定位问题。"""
+    try:
+        with open(LOG_PATH, 'a', encoding='utf-8') as f:
+            f.write('%s %s\n' % (time.strftime('%Y-%m-%d %H:%M:%S'), msg))
+    except Exception:
+        pass        # 日志本身绝不能影响主流程
+
+
 DEFAULT_CONFIG = {
     'idle_seconds': 300,        # 空闲多少秒后自动弹出（0 = 关闭空闲弹出）
     'hotkey': 'ctrl+alt+g',     # Windows 全局热键，例如 ctrl+alt+g / win+shift+f
     'auto_time': '',            # 每天定时弹出，格式 "HH:MM"，留空关闭
     'autostart': False,         # 是否随 Windows 登录自动启动（/bg 模式）
+    'hotkey_active': '',        # 上一次实际注册成功的热键（被占用自动顺延时与 hotkey 不同）
 }
 
-# 热键被其它软件占用时的自动顺延顺序（注册失败会依次尝试，并把实际生效的写进日志/设置面板）
+# 热键被其它软件占用时的自动顺延顺序。
+# 注意：优先 Win+Shift / Ctrl+Shift / F9 这类冷门组合。ctrl+alt+单字母 在中文输入法、
+# 截图工具、QQ/微信、游戏启动器里非常容易被占用，顺延到那些键基本等于白试。
 HOTKEY_FALLBACKS = [
-    'ctrl+alt+g', 'ctrl+alt+f', 'ctrl+shift+g', 'ctrl+alt+d',
-    'win+alt+g', 'win+shift+g', 'ctrl+alt+s', 'ctrl+alt+1',
+    'ctrl+alt+g', 'win+shift+g', 'ctrl+shift+g', 'alt+shift+g',
+    'ctrl+alt+f9', 'ctrl+shift+f9', 'win+shift+f9', 'ctrl+alt+q',
 ]
 
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -76,8 +109,8 @@ def load_config():
             for k in DEFAULT_CONFIG:
                 if k in data:
                     cfg[k] = data[k]
-    except Exception:
-        pass
+    except Exception as e:
+        _log('load_config 失败: %r' % (e,))
     return cfg
 
 
@@ -86,23 +119,31 @@ def save_config(cfg):
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
         return True
-    except Exception:
+    except Exception as e:
+        _log('save_config 失败: %r' % (e,))
         return False
 
 
 CFG = load_config()
 
 
-# ---------------- 日志（排障用，写程序目录 flagsaver.log） ----------------
-LOG_PATH = os.path.join(BASE_DIR, 'flagsaver.log')
+# ---------------- Win32 句柄类 API 的调用约定 ----------------
+# 注意：不显式声明 restype 时 ctypes 按 c_int 处理返回值，64 位句柄会被截断并导致崩溃。
+_k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+_u32 = ctypes.WinDLL('user32', use_last_error=True)
 
-
-def _log(msg):
-    try:
-        with open(LOG_PATH, 'a', encoding='utf-8') as f:
-            f.write('%s %s\n' % (time.strftime('%H:%M:%S'), msg))
-    except Exception:
-        pass
+_k32.CreateMutexW.restype = ctypes.c_void_p
+_k32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+_k32.CreateEventW.restype = ctypes.c_void_p
+_k32.CreateEventW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_wchar_p]
+_k32.OpenEventW.restype = ctypes.c_void_p
+_k32.OpenEventW.argtypes = [ctypes.c_uint, ctypes.c_int, ctypes.c_wchar_p]
+_k32.SetEvent.argtypes = [ctypes.c_void_p]
+_k32.SetEvent.restype = ctypes.c_int
+_k32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+_k32.WaitForSingleObject.restype = ctypes.c_uint
+_k32.CloseHandle.argtypes = [ctypes.c_void_p]
+_k32.CloseHandle.restype = ctypes.c_int
 
 
 # ---------------- 窗口引用与显隐 ----------------
@@ -146,13 +187,66 @@ def hide_window():
     _shown = False
 
 
+# ---------------- 显隐请求队列 + 专用执行线程 ----------------
+# 为什么要这样拆：热键线程一旦在窗口调用里被卡住（跨线程操作窗口的经典风险），
+# 它就再也回不到消息循环，热键会**永久失效**，而空闲自动弹（另一个线程）照常工作，
+# 现象非常难查。现在热键线程只往队列里丢一个动作，真正的窗口操作由 window_loop
+# 单独串行执行，并且带超时保护。
+_pending_lock = threading.Lock()
+_pending = []
+
+
+def _request(action):
+    """把显隐动作排队（'show' / 'hide' / 'toggle'）。任何线程都可以安全调用。"""
+    with _pending_lock:
+        if len(_pending) > 4:
+            _log('显隐请求堆积(%d)，丢弃最旧的一个' % len(_pending))
+            _pending.pop(0)
+        _pending.append(action)
+
+
+def _take_request():
+    with _pending_lock:
+        return _pending.pop(0) if _pending else None
+
+
+def _run_guarded(fn, timeout=8.0):
+    """带超时执行窗口操作：即便 pywebview 的窗口调用卡住，也不会把执行线程拖死。"""
+    done = threading.Event()
+
+    def _worker():
+        try:
+            fn()
+        except Exception as e:
+            _log('窗口操作异常: %r' % (e,))
+        finally:
+            done.set()
+
+    threading.Thread(target=_worker, daemon=True).start()
+    if not done.wait(timeout):
+        _log('窗口操作超时(>%.0fs)，已放弃本次 —— 若反复出现请把本行反馈给作者' % timeout)
+
+
+def window_loop():
+    """专用线程：串行执行所有窗口显隐动作。"""
+    while True:
+        try:
+            act = _take_request()
+            if act == 'toggle':
+                _log('toggle_window: shown=%s' % _shown)
+                _run_guarded(hide_window if _shown else show_window)
+            elif act == 'show':
+                _run_guarded(show_window)
+            elif act == 'hide':
+                _run_guarded(hide_window)
+        except Exception as e:
+            _log('window_loop 异常: %r' % (e,))
+        time.sleep(0.05)
+
+
 def toggle_window():
-    """全局热键触发：已显示则隐藏，未显示则全屏弹出。"""
-    _log('toggle_window: shown=%s' % _shown)
-    if _shown:
-        hide_window()
-    else:
-        show_window()
+    """显隐切换（兼容旧调用）：只入队，由 window_loop 执行。"""
+    _request('toggle')
 
 
 # ---------------- Windows 开机自启（注册表） ----------------
@@ -176,7 +270,8 @@ def set_autostart(enabled):
                 pass
             winreg.CloseKey(key)
         return True
-    except Exception:
+    except Exception as e:
+        _log('set_autostart 失败: %r' % (e,))
         return False
 
 
@@ -209,19 +304,22 @@ class Api:
             with open(JSON_PATH, 'w', encoding='utf-8') as f:
                 f.write(text)
             return True
-        except Exception:
+        except Exception as e:
+            _log('write_flags 失败: %r' % (e,))
             return False
 
     def quit_saver(self):
         """网页(JS)调用：退出「屏保」（隐藏窗口），下次空闲再显示。"""
-        hide_window()
+        _request('hide')
 
     def read_config(self):
         """设置面板读取配置（JSON 字符串）。"""
         cfg = dict(CFG)
         cfg['autostart'] = get_autostart()
         cfg['idle_minutes'] = round(CFG.get('idle_seconds', 0) / 60.0, 2)
-        cfg['hotkey_active'] = _hotkey_active   # 实际生效的热键（被占用时会与 hotkey 不同）
+        # 实际生效的热键（被占用时会与 hotkey 不同）；优先用本次运行的真实值
+        cfg['hotkey_active'] = _hotkey_active or CFG.get('hotkey_active', '')
+        cfg['version'] = APP_VERSION
         return json.dumps(cfg, ensure_ascii=False)
 
     def write_config(self, text):
@@ -229,7 +327,8 @@ class Api:
         global CFG
         try:
             data = json.loads(text)
-        except Exception:
+        except Exception as e:
+            _log('write_config 解析失败: %r' % (e,))
             return False
         try:
             minutes = float(data.get('idle_minutes', data.get('idle_seconds', 300) / 60.0))
@@ -260,8 +359,8 @@ class LASTINPUTINFO(ctypes.Structure):
 def get_idle_ms():
     li = LASTINPUTINFO()
     li.cbSize = ctypes.sizeof(li)
-    ctypes.windll.user32.GetLastInputInfo(ctypes.byref(li))
-    now = ctypes.windll.kernel32.GetTickCount()
+    _u32.GetLastInputInfo(ctypes.byref(li))
+    now = _k32.GetTickCount()
     return (now - li.dwTime) & 0xFFFFFFFF
 
 
@@ -269,16 +368,21 @@ _auto_fired_date = ''
 
 
 def monitor_loop():
-    """后台线程：空闲达到阈值 / 到达每日定时，就显示窗口。"""
+    """后台线程：响应另一个实例的呼出请求 / 空闲达到阈值 / 到达每日定时。"""
     global _auto_fired_date
     while True:
         try:
+            # 0) 有别的实例被双击启动 → 它发来了「呼出窗口」请求
+            if _take_show_request():
+                _log('收到另一个实例的呼出请求')
+                _request('show')
+
             cfg = CFG
             # 1) 空闲触发
             idle_seconds = int(cfg.get('idle_seconds', 300) or 0)
             if idle_seconds > 0 and (not _shown):
                 if get_idle_ms() / 1000.0 >= idle_seconds:
-                    show_window()
+                    _request('show')
             # 2) 每天定时触发
             auto_time = (cfg.get('auto_time') or '').strip()
             if auto_time and (not _shown):
@@ -287,10 +391,10 @@ def monitor_loop():
                 today = time.strftime('%Y-%m-%d', now)
                 if hhmm == auto_time and _auto_fired_date != today:
                     _auto_fired_date = today
-                    show_window()
-        except Exception:
-            pass
-        time.sleep(2)
+                    _request('show')
+        except Exception as e:
+            _log('monitor_loop 异常: %r' % (e,))
+        time.sleep(1)
 
 
 # ---------------- Windows 全局热键（RegisterHotKey） ----------------
@@ -331,17 +435,28 @@ def _mark_hotkey_dirty():
     _hotkey_dirty = True
 
 
+def _remember_active(active):
+    """把实际生效的热键记下来：写日志 + 落 config.json，供设置面板显示真实值。"""
+    global _hotkey_active
+    _hotkey_active = active or ''
+    if _hotkey_active and CFG.get('hotkey_active') != _hotkey_active:
+        CFG['hotkey_active'] = _hotkey_active
+        save_config(CFG)
+
+
 def hotkey_loop():
-    """注册系统级热键并跑消息循环；配置变更时自动重新注册。"""
+    """注册系统级热键并跑消息循环；配置变更时自动重新注册。
+
+    本线程只做「注册 + 收消息 + 入队」，绝不直接操作窗口，
+    以免窗口调用卡住后连热键一起失效。
+    """
     global _hotkey_dirty, _hotkey_current
-    user32 = ctypes.windll.user32
+    user32 = _u32
 
     class MSG(ctypes.Structure):
         _fields_ = [('hwnd', ctypes.c_void_p), ('message', ctypes.c_uint),
                     ('wParam', ctypes.c_size_t), ('lParam', ctypes.c_ssize_t),
                     ('time', ctypes.c_uint), ('ptX', ctypes.c_long), ('ptY', ctypes.c_long)]
-
-    global _hotkey_active
 
     def register(mods, vk):
         if vk is None:
@@ -351,8 +466,8 @@ def hotkey_loop():
     def unregister():
         try:
             user32.UnregisterHotKey(None, HOTKEY_ID)
-        except Exception:
-            pass
+        except Exception as e:
+            _log('UnregisterHotKey 异常: %r' % (e,))
 
     def register_with_fallback(preferred):
         """优先用配置的热键；被占用（1409）则自动顺延到下一个可用组合。"""
@@ -360,20 +475,23 @@ def hotkey_loop():
         for hk in order:
             mods, vk = parse_hotkey(hk)
             if vk is None:
+                _log('热键 %r 无法解析，跳过' % (hk,))
                 continue
             if register(mods, vk):
                 return hk, mods, vk
-            _log('hotkey %s 注册失败(err=%s)，尝试下一个' % (hk, ctypes.windll.kernel32.GetLastError()))
+            _log('hotkey %s 注册失败(err=%s)，尝试下一个' % (hk, ctypes.get_last_error()))
         return None, 0, 0
 
     active, mods, vk = register_with_fallback(CFG.get('hotkey'))
     _hotkey_current = (mods, vk) if active else None
-    _hotkey_active = active or ''
+    _remember_active(active)
     if active:
         _log('hotkey active: %s (配置 %s)%s' % (active, CFG.get('hotkey'),
                                                 '' if active == CFG.get('hotkey') else ' <- 被占用，已自动顺延'))
+        if active != CFG.get('hotkey'):
+            _log('提示：请在设置面板里把热键改成 %s，否则每次启动都会先撞一次被占用的键' % active)
     else:
-        _log('hotkey register FAILED for all candidates')
+        _log('hotkey register FAILED for all candidates（所有候选热键都被占用）')
 
     msg = MSG()
     PM_REMOVE = 0x0001
@@ -384,49 +502,85 @@ def hotkey_loop():
                 unregister()
                 active, m2, v2 = register_with_fallback(CFG.get('hotkey'))
                 _hotkey_current = (m2, v2) if active else None
-                _hotkey_active = active or ''
+                _remember_active(active)
                 _log('hotkey re-registered: %s' % (active or '(none)'))
             while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, PM_REMOVE):
                 if msg.message == WM_HOTKEY:
                     _log('WM_HOTKEY received')
-                    toggle_window()
+                    _request('toggle')      # 只入队，本线程不碰窗口
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
-        except Exception:
-            pass
+        except Exception as e:
+            _log('hotkey_loop 异常: %r' % (e,))
         time.sleep(0.2)
+
+
+# ---------------- 单实例（互斥量 + 唤醒事件） ----------------
+ERROR_ALREADY_EXISTS = 183
+MUTEX_NAME = 'Local\\FlagSaverSingleton'
+SHOW_EVENT_NAME = 'Local\\FlagSaverShowEvent'
+EVENT_MODIFY_STATE = 0x0002
+WAIT_OBJECT_0 = 0x00000000
+
+# 注意：用 Local\ 而不是 Global\。Global 命名对象在非管理员账户下可能直接创建失败
+# （GetLastError = 5 而非 183），单实例保护会形同虚设。
+_instance_mutex = None      # 句柄要一直持有到进程结束，不要 CloseHandle
+_show_event = None
+
+
+def _acquire_single_instance():
+    """True = 本进程是唯一实例，继续启动；
+    False = 已有实例在跑（此时已通知它把窗口呼出来），本进程直接退出。"""
+    global _instance_mutex, _show_event
+    _instance_mutex = _k32.CreateMutexW(None, False, MUTEX_NAME)
+    err = ctypes.get_last_error()
+    if not _instance_mutex:
+        _log('CreateMutexW 失败(err=%s)，跳过单实例检查' % err)
+        return True
+    if err == ERROR_ALREADY_EXISTS:
+        # 已有实例：请它把窗口呼出来，本进程退出。这样用户双击 exe 就是「呼出」，而不是没反应。
+        ev = _k32.OpenEventW(EVENT_MODIFY_STATE, False, SHOW_EVENT_NAME)
+        if ev:
+            _k32.SetEvent(ctypes.c_void_p(ev))
+            _k32.CloseHandle(ctypes.c_void_p(ev))
+            _log('已有实例在运行 -> 已通知它呼出窗口，本进程退出')
+        else:
+            _log('已有实例在运行，但通知失败(err=%s)' % ctypes.get_last_error())
+        return False
+    _show_event = _k32.CreateEventW(None, False, False, SHOW_EVENT_NAME)   # 自动重置事件
+    if not _show_event:
+        _log('CreateEventW 失败(err=%s)' % ctypes.get_last_error())
+    return True
+
+
+def _take_show_request():
+    """另一个实例（双击 exe）请求呼出窗口时返回 True（读事件时自动重置）。"""
+    if not _show_event:
+        return False
+    return _k32.WaitForSingleObject(ctypes.c_void_p(_show_event), 0) == WAIT_OBJECT_0
 
 
 # ---------------- 启动 ----------------
 def on_loaded():
-    """窗口创建后回调（主线程）：手动运行则立即全屏显示，后台模式先隐藏，再启动监控与热键。"""
+    """窗口创建后回调：手动运行则立即全屏显示，后台模式先隐藏，再启动监控与热键。"""
     _set_window(webview.windows[0])
     if BG_MODE:
         hide_window()
     else:
         show_window()
-    threading.Thread(target=monitor_loop, daemon=True).start()
-    threading.Thread(target=hotkey_loop, daemon=True).start()
-
-
-def already_running():
-    """单实例：用 Windows 命名互斥量防止多开（开机自启 + 手动双击不会重复弹窗）。"""
-    try:
-        ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\FlagSaverSingleton")
-        if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-            return True
-    except Exception:
-        pass
-    return False
+    for fn in (monitor_loop, window_loop, hotkey_loop):
+        threading.Thread(target=fn, daemon=True).start()
 
 
 if __name__ == '__main__':
-    if already_running():
+    _log('=== FlagSaver v%s 启动 | 模式=%s | 目录=%s ===' %
+         (APP_VERSION, '后台(/bg)' if BG_MODE else '前台', BASE_DIR))
+    if not _acquire_single_instance():
         sys.exit(0)
     if not os.path.exists(CONFIG_PATH):
         save_config(CFG)
     webview.create_window(
-        'Flag 倒计时',
+        WINDOW_TITLE,
         url=HTML_PATH,
         js_api=Api(),
         on_top=True,
