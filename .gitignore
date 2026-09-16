@@ -4,6 +4,8 @@ build/
 *.spec
 _zip_stage/
 _zip_out/
+# 历史版本安装包归档（本机留存用，体积大，通过 Release 分发）
+_releases/
 __pycache__/
 
 # 打包好的可执行文件（通过 Release 分发）
