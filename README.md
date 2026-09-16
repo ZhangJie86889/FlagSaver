@@ -9,11 +9,39 @@
 
 ## ⬇️ 下载（Windows 免安装）
 
+**最新版：[v1.2.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.2.0)**
+
 | 文件 | 说明 |
 |---|---|
 | **[FlagSaver-Windows-v1.2.0.zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.2.0/FlagSaver-Windows-v1.2.0.zip)** ⭐ | 推荐。解压即用，内含 exe + `flag.html` + 中文《使用说明》 |
 | [FlagSaver.exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.2.0/FlagSaver.exe) | 单文件程序，需自行把 `flag.html` 放在同目录 |
-| [v1.1.1](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.1.1) / [v1.1.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.1.0) / [v1.0.0](https://github.com/ZhangJie86889/FlagSaver/releases/tag/v1.0.0) | 旧版，需要时可回退 |
+
+### 📦 历史版本（长期保留，随时可回退）
+
+每个版本的 zip 与 exe 都**一直留在 Releases 上，不会被新版覆盖**。
+
+| 版本 | 发布 | 免安装包 | 单文件 exe |
+|---|---|---|---|
+| **v1.2.0** | 2026-09-16 | [zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.2.0/FlagSaver-Windows-v1.2.0.zip) | [exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.2.0/FlagSaver.exe) |
+| v1.1.1 | 2026-09-14 | [zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.1/FlagSaver-Windows-v1.1.1.zip) | [exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.1/FlagSaver.exe) |
+| v1.1.0 | 2026-09-09 | [zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver-Windows-v1.1.0.zip) | [exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.1.0/FlagSaver.exe) |
+| v1.0.0 | 2026-09-09 | [zip](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver-Windows-v1.0.0.zip) | [exe](https://github.com/ZhangJie86889/FlagSaver/releases/download/v1.0.0/FlagSaver.exe) |
+
+回退时按这个选：
+
+| 版本 | 有什么 | 缺什么 |
+|---|---|---|
+| **v1.2.0** | 月历视图、当天任务面板、`plan_date` 计划执行日；含 v1.1.1 全部修复 | —— |
+| v1.1.1 | 重复双击 exe 会把已有窗口**呼出来**；热键不再「用着用着哑掉」；日志带日期；设计 Token + 对比度 + 键盘焦点 + 内联校验 | 无月历 |
+| v1.1.0 | 全局热键、可视化设置面板、定时弹出、开机自启 | 无 v1.1.1 的健壮性修复，无月历 |
+| v1.0.0 | 初版：时钟 + Flag 卡片 + 立 Flag 表单 | 无热键、无设置面板 |
+
+> ⚠️ **exe 体积分两档，是构建环境不同**：v1.0.0 / v1.1.0 / v1.2.0 约 18.5 MB
+> （Python 3.14 + pywebview 6.2.1 + pythonnet），v1.1.1 为 14.1 MB（更精简的环境）。
+> 功能一致；万一某台机器上某一档跑不起来，换另一档试 —— 这也是保留全部历史版本的意义之一。
+>
+> 💡 各版本的 zip/exe 同时在本机 `_releases/<版本>/` 留了一份归档（含 sha256 校验清单），
+> 该目录不进 Git，见 `.gitignore`。
 
 **三步跑起来**：下载 zip → 解压到任意文件夹 → 双击 `FlagSaver.exe`。
 > 首次运行若被 Windows SmartScreen / 智能应用控制拦截，见下方 [双击 exe 没反应](#-设置面板--关联-windows-系统)。
