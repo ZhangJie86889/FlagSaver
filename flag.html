@@ -39,15 +39,25 @@
     --color-danger: #ff6b6b;                          /* ≈7.1:1 */
     --color-warn: #ffb36b;
     --color-success: #8be0a4;
+    /* 强调色透明度阶梯：月历「今天 / 选中 / 悬停」等状态底色统一从这里取，
+       避免新代码再到处手写 rgba(124,140,255,…) */
+    --color-accent-a10: rgba(124,140,255,.10);
+    --color-accent-a18: rgba(124,140,255,.18);
+    --color-accent-a30: rgba(124,140,255,.30);
+    --color-accent-a45: rgba(124,140,255,.45);
 
     /* ---- 边框：装饰用（不受限） vs 控件用（非文本对比度需 ≥3:1）---- */
     --color-border: rgba(255,255,255,.09);            /* 卡片/分隔等装饰性边界 */
     --color-border-control: rgba(255,255,255,.38);    /* 输入框等控件轮廓 ≈3.5:1 */
     --color-border-hover: rgba(255,255,255,.26);
+    /* 区域边界：用于「当天面板」这类内联面板——它的底色与页面底几乎同亮度（1.08:1），
+       边界全靠这条描边来识别，所以不能按装饰性描边处理，必须 ≥3:1。 */
+    --color-border-region: rgba(124,140,255,.62);     /* ≈3.2:1 */
 
     /* ---- 毛玻璃：统一层级；blur 控制在 10px 以内以免全屏大面积模糊拖慢渲染 ---- */
     --glass-bg: rgba(255,255,255,.045);
     --glass-bg-strong: rgba(16,17,38,.78);
+    --glass-bg-hover: rgba(255,255,255,.16);
     --glass-border: rgba(255,255,255,.12);
     --glass-blur: 10px;
     --glass-saturate: 150%;
@@ -507,6 +517,170 @@
   body.screensaver .time { font-size: clamp(3.8rem, 11vw, 7.2rem); filter: drop-shadow(0 0 46px rgba(124,140,255,.5)); }
   body.screensaver .card:hover { transform: none; border-color: rgba(124,140,255,.35); box-shadow: 0 12px 28px -8px rgba(0,0,0,0.5); }
 
+  /* ================= 月历视图（plan_date = 计划执行日） ================= */
+  /* 两条硬性约定，都是踩过的坑：
+     ① 类名一律用 .cal- 前缀。屏保模式会强制隐藏 .no-fs 与 .subtask-panel，
+        月历刻意避开这两类，才能在屏保里照常查看 / 添加当天任务；
+     ② 所有取值走 :root 的 Token，不再手写 #hex 或零散 px。 */
+  .cal-section { margin-top: var(--space-12); }
+
+  .cal-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+  .cal-head-text { flex: 1; min-width: 0; }
+  .cal-month { font-size: 18px; font-weight: 600; letter-spacing: .04em; }
+  .cal-month-sub { font-size: 12px; color: var(--color-text-tertiary); letter-spacing: .02em; margin-top: var(--space-1); }
+
+  .cal-nav-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-control);
+    background: var(--glass-bg);
+    color: var(--color-text-secondary);
+    font-size: 15px; line-height: 1; cursor: pointer;
+    display: grid; place-items: center;
+    transition: background .2s, color .2s, transform .2s;
+  }
+  .cal-today-btn {
+    height: 38px; padding: 0 var(--space-4); flex-shrink: 0;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-control);
+    background: var(--glass-bg);
+    color: var(--color-text-secondary);
+    font-size: 13px; cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+  .cal-nav-btn:hover, .cal-today-btn:hover { background: var(--glass-bg-hover); color: var(--color-text-primary); }
+  .cal-nav-btn:active { transform: scale(.94); }
+
+  .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2); }
+  .cal-weekdays { margin-bottom: var(--space-2); }
+  .cal-weekday { text-align: center; font-size: 12px; letter-spacing: .1em; color: var(--color-text-tertiary); padding: var(--space-1) 0; }
+
+  .cal-day {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--space-1);
+    min-height: 52px; padding: var(--space-2) var(--space-1);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    background: var(--glass-bg);
+    color: var(--color-text-primary);
+    font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer;
+    transition: background .2s, border-color .2s, color .2s, transform .2s;
+  }
+  .cal-day:hover { background: var(--color-accent-a18); border-color: var(--color-accent-a45); }
+  .cal-day:active { transform: scale(.96); }
+  .cal-day-num { line-height: 1.1; }
+
+  /* 月初/月末留白，保证列不错位（1 号永远落在正确的星期下面） */
+  .cal-day-blank { visibility: hidden; }
+
+  /* 今天：暖色 + 底部横条 + aria-current="date"，不依赖单一颜色传达 */
+  .cal-day.is-today { color: var(--color-warn); font-weight: 700; }
+  .cal-day.is-today::after {
+    content: ""; position: absolute; left: 50%; bottom: var(--space-1);
+    width: 16px; height: 2px; margin-left: -8px;
+    border-radius: var(--radius-pill); background: var(--color-warn);
+  }
+  /* 已打开的日期 */
+  .cal-day.is-selected { background: var(--color-accent-a30); border-color: var(--color-accent); }
+
+  /* 有任务：圆点 + 数量（颜色之外还有数字，色弱用户也能分辨） */
+  .cal-day-marks { display: flex; align-items: center; gap: 3px; min-height: 10px; }
+  .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-accent-soft); flex-shrink: 0; }
+  .cal-count { font-size: 10.5px; line-height: 1; color: var(--color-text-tertiary); }
+  .cal-day.has-tasks .cal-count { color: var(--color-text-secondary); }
+  /* 当天任务全部完成：圆点转成功色 */
+  .cal-day.is-alldone .cal-dot { background: var(--color-success); }
+
+  /* ---- 当天任务面板：页内内联，紧贴月历下方 ---- */
+  .cal-panel {
+    margin-top: var(--space-4); padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-region);
+    box-shadow: 0 18px 44px -20px rgba(0,0,0,.7);
+    /* 底部「添加区」在宽屏下是 position:sticky 的，会盖住面板最下面几个控件。
+       滚动余量让它自动滚进视图时留出空间（键盘 Tab 到那里同理）。 */
+    scroll-margin-bottom: calc(var(--space-12) * 2);
+  }
+  .cal-panel-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+  .cal-panel-head-text { flex: 1; min-width: 0; }
+  .cal-panel-title { font-size: 17px; font-weight: 600; letter-spacing: .03em; }
+  .cal-panel-sub { font-size: 12.5px; color: var(--color-text-tertiary); margin-top: var(--space-1); letter-spacing: .02em; }
+  .cal-panel-close {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-control);
+    background: var(--glass-bg); color: var(--color-text-secondary);
+    font-size: 13px; line-height: 1; cursor: pointer;
+    display: grid; place-items: center;
+    transition: background .2s, color .2s;
+  }
+  .cal-panel-close:hover { background: var(--glass-bg-hover); color: var(--color-text-primary); }
+
+  /* 过去日期：可查看不可添加，用警示色文字说明（配合表单内联报错拦截） */
+  .cal-warn { font-size: 12.5px; line-height: 1.6; color: var(--color-warn); margin-top: var(--space-3); }
+
+  .cal-task-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+  .cal-task {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--glass-bg);
+  }
+  .cal-task.is-done { background: rgba(255,255,255,.02); }
+  .cal-task.is-overdue { border-color: var(--color-danger); }
+  .cal-task-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+  .cal-task-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; line-height: 1.5; overflow-wrap: break-word; }
+  .cal-task.is-done .cal-task-name { color: var(--color-text-secondary); text-decoration: line-through; }
+  .cal-task-meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3);
+    margin-top: var(--space-2); font-size: 12.5px; color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-task-overdue { color: var(--color-danger); }
+  .cal-task-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+  /* 面板里的子任务复用卡片那套 .subtask-list / .subtask-item 样式，
+     但外层容器不能叫 .subtask-panel —— 那个类名在屏保模式下被强制 display:none */
+  .cal-subs { margin-top: var(--space-1); }
+
+  .cal-empty { font-size: 13.5px; color: var(--color-text-tertiary); line-height: 1.8; padding: var(--space-4) 0; }
+
+  .cal-add-toggle {
+    margin-top: var(--space-4); padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-accent-a45);
+    background: var(--color-accent-a18);
+    color: var(--color-accent-soft);
+    font-size: 13.5px; cursor: pointer;
+    transition: background .2s;
+    scroll-margin-bottom: calc(var(--space-12) * 2);
+  }
+  .cal-add-toggle:hover { background: var(--color-accent-a30); }
+
+  .cal-form {
+    margin-top: var(--space-4); padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    display: flex; flex-direction: column; gap: var(--space-4);
+  }
+  .cal-form-row { display: flex; flex-direction: column; min-width: 0; }
+  .cal-form-row label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: var(--space-2); letter-spacing: .04em; }
+  .cal-form input[type="text"], .cal-form input[type="date"], .cal-form textarea {
+    width: 100%;
+    background: var(--glass-bg);
+    border: 1px solid var(--color-border-control);   /* 控件轮廓 ≥3:1 */
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    color: var(--color-text-primary); font-size: 14px; font-family: inherit; outline: none;
+    transition: border-color .25s, box-shadow .25s;
+  }
+  .cal-form input:focus, .cal-form textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-a18); }
+  .cal-form input[aria-invalid="true"], .cal-form textarea[aria-invalid="true"] { border-color: var(--color-danger); }
+  .cal-form textarea { min-height: 76px; resize: vertical; line-height: 1.6; }
+  .cal-form-actions { display: flex; gap: var(--space-3); scroll-margin-bottom: calc(var(--space-12) * 2); }
+  /* 复用设置面板那套按钮外观，只把 flex:1 收成按内容宽度 */
+  .cal-form-actions .st-btn { flex: 0 0 auto; min-width: 96px; padding: 0 var(--space-5); }
+
   /* ================= 关联数据文件横幅 ================= */
   .link-banner {
     position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%);
@@ -546,6 +720,14 @@
     .kbd-hint { display: none; }
     .card { padding: var(--space-5) var(--space-4) var(--space-4); }
     .flag-name { padding-right: 64px; font-size: 17px; }
+    /* 月历：窄屏压缩格子与间距，7 列用 minmax(0,1fr) 分宽，不会出现横向滚动 */
+    .cal-grid, .cal-weekdays { gap: var(--space-1); }
+    .cal-day { min-height: 44px; font-size: 13px; padding: var(--space-1) 2px; }
+    .cal-head-text { flex: 1 0 100%; }
+    .cal-head { flex-wrap: wrap; }
+    .cal-panel { padding: var(--space-4); }
+    .cal-form-actions { flex-direction: column; }
+    .cal-form-actions .st-btn { width: 100%; }
   }
 
   /* 尊重系统「减少动态效果」：关闭背景光晕漂移、卡片入场、进度条动画等非必要动效 */
@@ -629,6 +811,83 @@
       在下方添加你的第一个 Flag，点亮这一年的目标
     </p>
 
+    <!-- 月历视图：点击某一天查看/添加「当天的 Flag 任务」。
+         注意：本区块刻意不带 no-fs，否则屏保模式下会被隐藏。 -->
+    <section class="cal-section" id="calSection" aria-labelledby="calMonthLabel">
+      <div class="cal-head">
+        <div class="cal-head-text">
+          <h2 class="cal-month" id="calMonthLabel">--</h2>
+          <p class="cal-month-sub" id="calMonthSub"></p>
+        </div>
+        <button class="cal-today-btn" id="calTodayBtn" type="button">今天</button>
+        <button class="cal-nav-btn" id="calPrevBtn" type="button" aria-label="上一月">‹</button>
+        <button class="cal-nav-btn" id="calNextBtn" type="button" aria-label="下一月">›</button>
+      </div>
+
+      <!-- 星期表头（周一起首，与中文习惯一致）。表头是装饰性重复信息，对读屏隐藏 -->
+      <div class="cal-weekdays" aria-hidden="true">
+        <span class="cal-weekday">一</span><span class="cal-weekday">二</span>
+        <span class="cal-weekday">三</span><span class="cal-weekday">四</span>
+        <span class="cal-weekday">五</span><span class="cal-weekday">六</span>
+        <span class="cal-weekday">日</span>
+      </div>
+      <div class="cal-grid" id="calGrid" role="group" aria-label="月历"></div>
+
+      <!-- 月份切换 / 选中日期 / 新增任务的读屏播报出口 -->
+      <div class="sr-only" role="status" aria-live="polite" id="calLive"></div>
+
+      <!-- 当天面板：非模态内联面板，role=dialog + aria-modal=false 更贴合实际语义。
+           tabindex="-1" 是为了打开时能把焦点放进来。
+           任务列表由 JS 渲染；添加表单是静态结构，避免重绘时清掉用户已输入的内容。 -->
+      <section class="cal-panel" id="calPanel" role="dialog" aria-modal="false"
+               aria-labelledby="calPanelTitle" tabindex="-1" hidden>
+        <div class="cal-panel-head">
+          <div class="cal-panel-head-text">
+            <h3 class="cal-panel-title" id="calPanelTitle"></h3>
+            <p class="cal-panel-sub" id="calPanelSub"></p>
+          </div>
+          <button class="cal-panel-close" id="calPanelClose" type="button" aria-label="关闭当天面板">✕</button>
+        </div>
+
+        <p class="cal-warn" id="calPastWarn" hidden></p>
+
+        <ul class="cal-task-list" id="calTaskList"></ul>
+        <p class="cal-empty" id="calTaskEmpty" hidden></p>
+
+        <button class="cal-add-toggle" id="calAddToggle" type="button"
+                aria-expanded="false" aria-controls="calAddForm">＋ 添加当天任务</button>
+
+        <form class="cal-form" id="calAddForm" novalidate hidden>
+          <input type="hidden" id="calPlanDate" value="">
+
+          <div class="cal-form-row">
+            <label for="calTaskName">任务名称（必填）</label>
+            <input type="text" id="calTaskName" maxlength="40" autocomplete="off"
+                   placeholder="今天要做什么" aria-describedby="calTaskNameErr">
+            <p class="field-error" id="calTaskNameErr" role="alert" hidden></p>
+          </div>
+
+          <div class="cal-form-row">
+            <label for="calTaskDeadline">截止日期（可选，留空＝当天）</label>
+            <input type="date" id="calTaskDeadline" aria-describedby="calTaskDeadlineErr">
+            <p class="field-error" id="calTaskDeadlineErr" role="alert" hidden></p>
+          </div>
+
+          <div class="cal-form-row">
+            <label for="calTaskSubs">子任务（可选，一行一条）</label>
+            <textarea id="calTaskSubs" rows="3" placeholder="背 50 个单词&#10;刷一套真题"></textarea>
+          </div>
+
+          <p class="field-error" id="calFormErr" role="alert" hidden></p>
+
+          <div class="cal-form-actions">
+            <button class="st-btn st-btn-ghost" type="button" id="calFormCancel">取消</button>
+            <button class="st-btn st-btn-primary" type="submit" id="calFormSubmit">保存</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
     <footer class="add-section no-fs">
       <div class="field field-name">
         <label class="sr-only" for="flagName">新 Flag 名称</label>
@@ -666,6 +925,11 @@ let firstRender = true;
 let highlightId = null;           
 const expandedIds = new Set();    
 
+/* 月历「当天面板」是否打开。声明在这里（脚本最前部的状态区）而不是月历模块里，
+   是为了让 patchSaverExit() 的 Esc 拦截能安全读到它 —— 那个监听器是异步注册的，
+   时序上依赖「变量已初始化」，用函数声明之外的方式容易踩 TDZ。 */
+let calPanelOpen = false;
+
 /* ==================== 工具函数 ==================== */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -698,6 +962,11 @@ function normalize(list) {
     id: typeof f.id === 'string' && f.id ? f.id : uid(),
     name: typeof f.name === 'string' ? f.name : '未命名 Flag',
     date: typeof f.date === 'string' ? f.date : '',
+    /* plan_date：计划「在哪一天执行」（本地日期 YYYY-MM-DD），月历视图用它归组。
+       老数据没有这个字段 → 这里补成空串，读取时由 planDateOf() 回退到 date，
+       所以旧 Flag 会照常出现在它的截止日那天，既不报错也不丢数据。
+       刻意不在这里把 date 回填进 plan_date：文件内容保持可预测，回退只在读时发生。 */
+    plan_date: typeof f.plan_date === 'string' ? f.plan_date : '',
     completed: !!f.completed,
     subtasks: Array.isArray(f.subtasks)
       ? f.subtasks.map(s => ({
@@ -712,8 +981,18 @@ function normalize(list) {
 function defaultFlags() {
   const now = new Date();
   return [
+    /* 示例数据带上 plan_date，让首次打开就能在月历上看到"这天有任务"的效果。
+       前三条的 plan_date 与 date 相同（沿用老语义），第四条演示「计划日 ≠ 截止日」。 */
     {
-      id: uid(), name: '考研上岸 · 目标 400 分', date: toLocalISO(addDays(now, 122)), completed: false,
+      id: uid(), name: '今天先把这一周排出来', date: toLocalISO(now), plan_date: toLocalISO(now),
+      completed: false,
+      subtasks: [
+        { id: uid(), text: '在月历里点一个日期，加一条当天任务', done: false }
+      ]
+    },
+    {
+      id: uid(), name: '考研上岸 · 目标 400 分', date: toLocalISO(addDays(now, 122)),
+      plan_date: toLocalISO(addDays(now, 122)), completed: false,
       subtasks: [
         { id: uid(), text: '数学真题刷完近 10 年', done: true },
         { id: uid(), text: '英语作文模板整理成册', done: false },
@@ -721,14 +1000,16 @@ function defaultFlags() {
       ]
     },
     {
-      id: uid(), name: '减脂到 70kg', date: toLocalISO(addDays(now, 37)), completed: false,
+      id: uid(), name: '减脂到 70kg', date: toLocalISO(addDays(now, 37)),
+      plan_date: toLocalISO(addDays(now, 2)), completed: false,
       subtasks: [
         { id: uid(), text: '每周 4 次力量训练', done: true },
         { id: uid(), text: '戒掉宵夜和含糖饮料', done: false }
       ]
     },
     {
-      id: uid(), name: '读完 12 本书', date: toLocalISO(addDays(now, -24)), completed: false,
+      id: uid(), name: '读完 12 本书', date: toLocalISO(addDays(now, -24)),
+      plan_date: toLocalISO(addDays(now, -24)), completed: false,
       subtasks: [
         { id: uid(), text: '《置身事内》', done: true },
         { id: uid(), text: '《纳瓦尔宝典》', done: true }
@@ -760,8 +1041,12 @@ function patchSaverExit() {
       if (window.__saverExitOK) return orig();
       return false;   // 鼠标移动/点击等非 Esc 触发：忽略，不退出屏保
     };
-    // 仅 Esc 键允许真正退出（capture 阶段，先于 .scr 注入的冒泡监听）
+    // 仅 Esc 键允许真正退出（capture 阶段，先于 .scr 注入的冒泡监听）。
+    // 双保险：月历「当天面板」打开时 Esc 归面板管，这里直接放行、不退出屏保。
+    // 正常情况下上面的面板监听器已经 stopImmediatePropagation 拦住了，
+    // 这一层是防止将来监听器注册顺序变化时屏保被误关。
     window.addEventListener('keydown', function (e) {
+      if (calPanelOpen) return;
       if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
         window.__saverExitOK = true;
         try { window.pywebview.api.quit_saver(); } catch (_) {}
@@ -914,11 +1199,16 @@ async function save() {
 function findFlag(id) { return flags.find(f => f.id === id); }
 
 /* ==================== 渲染层 ==================== */
-function subtaskHTML(s) {
+/* idPrefix：同一个子任务会同时出现在卡片和当天面板里，checkbox 的 id / label 的 for
+   必须区分前缀，否则 label 会关联到第一个同名元素（勾选串位）。
+   showDel：当天面板里的子任务只做勾选、不提供删除按钮（删除统一在卡片上做）。 */
+function subtaskHTML(s, idPrefix, showDel) {
+  const p = idPrefix || 'ck-';
+  const del = showDel === false ? '' :
+    `\n    <button class="subtask-del no-fs" data-action="delete-subtask" data-sub="${s.id}" title="删除子任务">✕</button>`;
   return `<li class="subtask-item${s.done ? ' done' : ''}" data-id="${s.id}">
-    <input type="checkbox" id="ck-${s.id}"${s.done ? ' checked' : ''} aria-label="${esc(s.text)}">
-    <label class="subtask-text" for="ck-${s.id}">${esc(s.text)}</label>
-    <button class="subtask-del no-fs" data-action="delete-subtask" data-sub="${s.id}" title="删除子任务">✕</button>
+    <input type="checkbox" id="${p}${s.id}"${s.done ? ' checked' : ''} aria-label="${esc(s.text)}">
+    <label class="subtask-text" for="${p}${s.id}">${esc(s.text)}</label>${del}
   </li>`;
 }
 
@@ -954,6 +1244,11 @@ function cardHTML(flag, idx) {
                      : '<li class="subtask-empty">暂无子任务，添加一个开始拆解目标吧 ↓</li>';
   const progressLabel = total ? doneCount + '/' + total : '—';
 
+  /* 计划执行日与截止日不同时才额外显示一行；相同或老数据（无 plan_date）都不显示，
+     既保留 date 的「截止」语义，又不会给所有卡片塞一条重复信息 */
+  const planLine = (flag.plan_date && flag.plan_date !== flag.date)
+    ? `\n    <p class="flag-date">📅 计划 ${esc(flag.plan_date)}</p>` : '';
+
   return `
   <article class="${cls.join(' ')}" data-id="${flag.id}"${style}>
     <div class="card-actions no-fs">
@@ -964,7 +1259,7 @@ function cardHTML(flag, idx) {
               aria-label="删除：${esc(flag.name)}">🗑️</button>
     </div>
     <h2 class="flag-name">${esc(flag.name)}</h2>
-    <p class="flag-date">🎯 截止 ${esc(flag.date)}</p>
+    <p class="flag-date">🎯 截止 ${esc(flag.date)}</p>${planLine}
     <div class="countdown">${countdown}</div>
     <div class="progress-row">
       <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
@@ -1012,6 +1307,10 @@ function render() {
     }
   }));
   firstRender = false;
+
+  /* 月历与当天面板跟随同一份 flags 数据刷新。所有增删改最终都会汇流到 render()，
+     在这里统一刷新，就不必在每个 save() 之后手动补一次调用。 */
+  renderCalendar();
 }
 
 /* ==================== 时钟 ==================== */
@@ -1117,6 +1416,509 @@ $('#flagDate').addEventListener('change', () => {
   const el = $('#flagDate'); if (!el.value) return;
   setFieldError(el, $('#flagDateErr'), dateFieldError(el.value));
 });
+
+/* ==================== 月历视图（plan_date = 计划执行日） ==================== */
+/* 三条设计约定：
+   ① 日期一律按「本地日期」处理（toLocalISO / new Date(y, m, d)），不做任何时区换算，
+      与现有 getDaysLeft() 保持同一天粒度；
+   ② 读取时 plan_date 缺失即回退到原有 date（见 planDateOf），所以老数据不报错、不消失；
+   ③ 类名全用 .cal- 前缀：屏保模式会强制隐藏 .no-fs 与 .subtask-panel，
+      月历刻意避开这两类，才能在屏保里照常查看与添加当天任务。 */
+
+const CAL_WEEK = ['一', '二', '三', '四', '五', '六', '日'];
+
+const calGridEl   = $('#calGrid');
+const calLiveEl   = $('#calLive');
+const calMonthEl  = $('#calMonthLabel');
+const calMonthSub = $('#calMonthSub');
+const calPanel    = $('#calPanel');
+const calTitleEl  = $('#calPanelTitle');
+const calSubEl    = $('#calPanelSub');
+const calListEl   = $('#calTaskList');
+const calEmptyEl  = $('#calTaskEmpty');
+const calWarnEl   = $('#calPastWarn');
+const calToggleEl = $('#calAddToggle');
+const calFormEl   = $('#calAddForm');
+const calPlanEl   = $('#calPlanDate');
+
+const cal = {
+  viewY: 0, viewM: 0,      // 当前显示的年、月（月份 0-11）
+  focusDate: '',           // 键盘漫游焦点所在日期：决定网格里哪个格子 tabindex=0
+  selected: '',            // 已打开的日期；'' 表示面板关闭
+  adding: false,           // 「添加当天任务」表单是否展开
+  ready: false
+};
+
+/* ---- 本地日期工具（不涉时区） ---- */
+function isoOf(y, m, d) {
+  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+function todayISO() { return toLocalISO(new Date()); }
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }  // 闰年 / 月末自动处理
+function parseISO(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s))) return null;
+  const p = String(s).split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  // 反查一遍，挡掉 2026-02-30 这类会被 Date 自动进位的假日期
+  if (d.getFullYear() !== p[0] || d.getMonth() !== p[1] - 1 || d.getDate() !== p[2]) return null;
+  return d;
+}
+function weekdayIdx(d) { return (d.getDay() + 6) % 7; }   // 周一 = 0，与表头一致
+
+/* Flag 的计划执行日：优先 plan_date；老数据缺失则回退到原有 date 字段 */
+function planDateOf(f) {
+  if (f && typeof f.plan_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.plan_date)) return f.plan_date;
+  return (f && typeof f.date === 'string') ? f.date : '';
+}
+function flagsOnDate(iso) { return flags.filter(f => planDateOf(f) === iso); }
+
+/* 设置面板是否打开。Esc 优先级判断要用，直接查 DOM，
+   避免对后面才声明的 st 对象产生「声明顺序」依赖。 */
+function stPanelOpen() {
+  const m = document.getElementById('stMask');
+  return !!(m && m.classList.contains('show'));
+}
+function calSay(msg) { if (calLiveEl) calLiveEl.textContent = msg; }
+function focusCalDay(iso) {
+  const btn = calGridEl && calGridEl.querySelector('.cal-day[data-date="' + iso + '"]');
+  if (btn) btn.focus();
+}
+function calScrollIntoView(el) {
+  if (!el || !el.scrollIntoView) return;
+  const reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  el.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+}
+
+/* 日期格的无障碍名称：日期 + 周几 + 任务数一次说清，读屏用户不必点进去才知道 */
+function calDayLabel(iso) {
+  const d = parseISO(iso);
+  if (!d) return iso;
+  const list = flagsOnDate(iso);
+  const todo = list.filter(f => !f.completed).length;
+  let s = d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + CAL_WEEK[weekdayIdx(d)];
+  if (iso === todayISO()) s += '，今天';
+  if (iso === cal.selected) s += '，已打开当天面板';
+  if (list.length) s += '，' + list.length + ' 项任务' + (todo ? '，' + todo + ' 项未完成' : '，全部已完成');
+  else s += '，没有任务';
+  return s;
+}
+
+/* ---- 渲染：月历网格 ---- */
+function renderCalendar() {
+  if (!calGridEl) return;
+  cal.ready = true;
+
+  const today = todayISO();
+  const y = cal.viewY, m = cal.viewM;
+  const prefix = isoOf(y, m, 1).slice(0, 8);     // "YYYY-MM-"
+
+  /* 保证漫游焦点落在当前显示的月份里。否则所有格子都会是 tabindex="-1"，
+     Tab 键再也进不来月历 —— 焦点管理里很容易踩的坑。 */
+  if (!cal.focusDate || cal.focusDate.indexOf(prefix) !== 0) {
+    cal.focusDate = (today.indexOf(prefix) === 0) ? today : isoOf(y, m, 1);
+  }
+
+  /* ---- 头部 ---- */
+  const monthCount = flags.filter(f => planDateOf(f).indexOf(prefix) === 0).length;
+  calMonthEl.textContent = y + ' 年 ' + (m + 1) + ' 月';
+  calMonthSub.textContent = monthCount
+    ? ('本月 ' + monthCount + ' 项任务 · 点日期查看或添加')
+    : '本月暂时没有任务 · 点日期可添加';
+  calGridEl.setAttribute('aria-label', y + ' 年 ' + (m + 1) + ' 月，用方向键选择日期，回车打开当天面板');
+
+  /* ---- 网格：周一为第一列，月初月末用留白占位，保证列不错位 ---- */
+  const lead = weekdayIdx(new Date(y, m, 1));
+  const dim = daysInMonth(y, m);
+  const cells = [];
+  for (let i = 0; i < lead; i++) {
+    cells.push('<span class="cal-day cal-day-blank" aria-hidden="true"></span>');
+  }
+  for (let d = 1; d <= dim; d++) {
+    const iso = isoOf(y, m, d);
+    const list = flagsOnDate(iso);
+    const allDone = list.length > 0 && list.every(f => f.completed);
+    const cls = ['cal-day'];
+    if (iso === today) cls.push('is-today');
+    if (iso === cal.selected) cls.push('is-selected');
+    if (list.length) cls.push('has-tasks');
+    if (allDone) cls.push('is-alldone');
+
+    /* 有任务：圆点 + 数量。数字本身也是信息通道，不依赖颜色也能分辨 */
+    const marks = list.length
+      ? '<span class="cal-day-marks"><span class="cal-dot" aria-hidden="true"></span>' +
+        '<span class="cal-count" aria-hidden="true">' + list.length + '</span></span>'
+      : '<span class="cal-day-marks" aria-hidden="true"></span>';
+
+    const attrs = (iso === today ? ' aria-current="date"' : '') +
+                  (iso === cal.selected ? ' aria-pressed="true"' : '') +
+                  ' tabindex="' + (iso === cal.focusDate ? '0' : '-1') + '"';
+
+    cells.push('<button type="button" class="' + cls.join(' ') + '" data-date="' + iso + '"' + attrs +
+               ' aria-label="' + esc(calDayLabel(iso)) + '">' +
+               '<span class="cal-day-num" aria-hidden="true">' + d + '</span>' + marks + '</button>');
+  }
+  calGridEl.innerHTML = cells.join('');
+
+  renderCalPanel();
+}
+
+/* ---- 当天面板里的任务卡片：样式与语义对齐卡片区，完成态用同一套三重标识 ---- */
+function calTaskHTML(f) {
+  const days = getDaysLeft(f.date);
+  const total = f.subtasks.length;
+  const doneCount = f.subtasks.filter(s => s.done).length;
+
+  let meta;
+  if (f.completed) {
+    meta = '<span class="done-badge"><span class="done-badge-icon" aria-hidden="true">✓</span>已完成</span>';
+  } else if (isNaN(days)) {
+    meta = '<span>🎯 未设截止日</span>';
+  } else if (days > 0) {
+    meta = '<span>🎯 截止 ' + esc(f.date) + ' · 剩余 ' + days + ' 天</span>';
+  } else if (days === 0) {
+    meta = '<span>🎯 截止 ' + esc(f.date) + ' · 今天到期</span>';
+  } else {
+    meta = '<span class="cal-task-overdue">🎯 截止 ' + esc(f.date) + ' · 已逾期 ' + (-days) + ' 天</span>';
+  }
+  if (total) meta += '<span>子任务 ' + doneCount + '/' + total + '</span>';
+
+  const cls = ['cal-task'];
+  if (f.completed) cls.push('is-done');
+  if (!f.completed && !isNaN(days) && days < 0) cls.push('is-overdue');
+
+  const subs = total
+    ? '<div class="cal-subs"><ul class="subtask-list">' +
+      f.subtasks.map(s => subtaskHTML(s, 'calsub-', false)).join('') + '</ul></div>'
+    : '';
+
+  return `<li class="${cls.join(' ')}" data-id="${f.id}">
+      <div class="cal-task-head">
+        <span class="cal-task-name">${esc(f.name)}</span>
+        <span class="cal-task-actions">
+          <button class="icon-btn" type="button" data-cal-action="toggle-done"
+                  title="${f.completed ? '取消完成' : '标记为已完成'}"
+                  aria-label="${f.completed ? '取消完成' : '标记为已完成'}：${esc(f.name)}">${f.completed ? '↩️' : '✅'}</button>
+          <button class="icon-btn icon-danger" type="button" data-cal-action="delete"
+                  title="删除该任务" aria-label="删除：${esc(f.name)}">🗑️</button>
+        </span>
+      </div>
+      <div class="cal-task-meta">${meta}</div>
+      ${subs}
+    </li>`;
+}
+
+/* ---- 渲染：当天面板（任务列表用 innerHTML 重绘；添加表单是静态结构，不参与重绘，
+        否则用户正在填的内容会被每次刷新清掉） ---- */
+function renderCalPanel() {
+  if (!calPanel) return;
+  if (!cal.selected) { calPanel.hidden = true; calPanelOpen = false; return; }
+  const d = parseISO(cal.selected);
+  if (!d) { cal.selected = ''; calPanel.hidden = true; calPanelOpen = false; return; }
+
+  calPanel.hidden = false;
+  calPanelOpen = true;
+
+  const today = todayISO();
+  const list = flagsOnDate(cal.selected).sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return (getDaysLeft(a.date) || 0) - (getDaysLeft(b.date) || 0);
+  });
+  const doneN = list.filter(f => f.completed).length;
+
+  calTitleEl.textContent = (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 · 周' + CAL_WEEK[weekdayIdx(d)] +
+                           (cal.selected === today ? '（今天）' : '');
+  calSubEl.textContent = list.length
+    ? ('共 ' + list.length + ' 项任务 · 已完成 ' + doneN + ' 项')
+    : '这天还没有任务';
+
+  /* 过去日期：允许查看但不允许再添加 —— 与「截止日不能早于今天」是同一条规则的两面。
+     这里先给一条可见提示，真正的拦截在提交时用内联报错（样式与底部表单完全一致）。 */
+  if (cal.selected < today) {
+    calWarnEl.textContent = '⚠ ' + cal.selected + ' 已经过去（今天是 ' + today + '），可查看但不能往这天添加任务。';
+    calWarnEl.hidden = false;
+  } else {
+    calWarnEl.hidden = true;
+  }
+
+  calListEl.innerHTML = list.map(calTaskHTML).join('');
+  calEmptyEl.textContent = list.length ? '' : '这天还没有任务，用下面的按钮加一条吧。';
+  calEmptyEl.hidden = list.length > 0;
+
+  /* 只同步与日期相关的属性，不动用户已在表单里填好的内容 */
+  calPlanEl.value = cal.selected;
+  const dlEl = $('#calTaskDeadline');
+  if (dlEl) dlEl.min = today;            // 原生日期控件先挡一层
+  calSetAdding(cal.adding, false);
+}
+
+/* 展开 / 收起「添加当天任务」表单。focusName 只在用户主动点击时传 true，
+   重绘路径传 false，否则每次刷新都会把焦点抢到名称框里。 */
+function calSetAdding(on, focusName) {
+  cal.adding = !!on;
+  if (calFormEl) calFormEl.hidden = !cal.adding;
+  if (calToggleEl) {
+    calToggleEl.setAttribute('aria-expanded', cal.adding ? 'true' : 'false');
+    calToggleEl.textContent = cal.adding ? '收起添加表单' : '＋ 添加当天任务';
+  }
+  if (cal.adding && focusName) {
+    const n = $('#calTaskName');
+    if (n) n.focus();
+  }
+}
+
+/* ---- 打开 / 关闭当天面板 ---- */
+function calOpenDay(iso) {
+  if (!parseISO(iso)) return;
+  cal.selected = iso;
+  cal.focusDate = iso;
+  renderCalendar();
+  calPanelOpen = true;
+  if (calPanel) calPanel.focus();        // 焦点进入面板（面板带 tabindex="-1"）
+  calScrollIntoView(calPanel);
+  const d = parseISO(iso);
+  calSay((d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日，已打开当天面板，共 ' +
+         flagsOnDate(iso).length + ' 项任务');
+}
+
+function calCloseDay() {
+  if (!cal.selected) return;
+  const iso = cal.selected;
+  cal.selected = '';
+  cal.focusDate = iso;                   // 焦点要还原到这个格子，它必须仍可 Tab 到
+  calSetAdding(false, false);
+  calPlanEl.value = '';
+  clearFieldError($('#calTaskName'), $('#calTaskNameErr'));
+  clearFieldError($('#calTaskDeadline'), $('#calTaskDeadlineErr'));
+  const fe = $('#calFormErr');
+  if (fe) { fe.hidden = true; fe.textContent = ''; }
+  renderCalendar();
+
+  /* 网格是整块重绘的，触发的那个按钮已不在文档里，按 data-date 重新找回同一格 */
+  focusCalDay(iso);
+  calSay('已关闭当天面板');
+}
+
+/* ---- 导航 ---- */
+function calGoTo(y, m, d, focusDay) {
+  cal.viewY = y;
+  cal.viewM = m;
+  cal.focusDate = isoOf(y, m, Math.min(d, daysInMonth(y, m)));
+  renderCalendar();
+  if (focusDay) focusCalDay(cal.focusDate);
+}
+function calMoveDays(delta) {
+  const base = parseISO(cal.focusDate) || parseISO(todayISO());
+  const t = new Date(base.getFullYear(), base.getMonth(), base.getDate() + delta);
+  calGoTo(t.getFullYear(), t.getMonth(), t.getDate(), true);
+}
+function calMoveMonths(delta, focusDay) {
+  const base = parseISO(cal.focusDate) || parseISO(todayISO());
+  let y = base.getFullYear(), m = base.getMonth() + delta;
+  y += Math.floor(m / 12);
+  m = ((m % 12) + 12) % 12;
+  // 月末保护：1/31 切到 2 月取 28/29 号，不会溢到下个月
+  calGoTo(y, m, base.getDate(), focusDay);
+  calSay(y + ' 年 ' + (m + 1) + ' 月');
+}
+
+/* ---- 事件绑定 ---- */
+const calPrevBtn = $('#calPrevBtn'), calNextBtn = $('#calNextBtn'), calTodayBtn = $('#calTodayBtn');
+if (calPrevBtn) calPrevBtn.addEventListener('click', () => calMoveMonths(-1, false));
+if (calNextBtn) calNextBtn.addEventListener('click', () => calMoveMonths(1, false));
+if (calTodayBtn) calTodayBtn.addEventListener('click', () => {
+  const t = parseISO(todayISO());
+  calGoTo(t.getFullYear(), t.getMonth(), t.getDate(), true);
+  calSay('已回到今天 ' + todayISO());
+});
+
+/* 点击日期格：打开 / 收起当天面板 */
+if (calGridEl) calGridEl.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.cal-day');
+  if (!btn || btn.classList.contains('cal-day-blank')) return;
+  e.stopPropagation();                   // 别让「点空白处进屏保」跟着触发
+  const iso = btn.dataset.date;
+  if (cal.selected === iso) { calCloseDay(); return; }
+  calOpenDay(iso);
+});
+
+/* 方向键漫游。Enter / Space 不在这里处理：交给 <button> 的原生行为触发 click，
+   自己再拦一次会和原生行为撞车（同一个按键触发两次） */
+if (calGridEl) calGridEl.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  const btn = e.target.closest && e.target.closest('.cal-day');
+  if (!btn || btn.classList.contains('cal-day-blank')) return;
+  if (!parseISO(btn.dataset.date)) return;
+  cal.focusDate = btn.dataset.date;
+  const base = parseISO(cal.focusDate);
+  switch (e.key) {
+    case 'ArrowLeft':  e.preventDefault(); calMoveDays(-1); break;
+    case 'ArrowRight': e.preventDefault(); calMoveDays(1); break;
+    case 'ArrowUp':    e.preventDefault(); calMoveDays(-7); break;
+    case 'ArrowDown':  e.preventDefault(); calMoveDays(7); break;
+    case 'Home':       e.preventDefault(); calMoveDays(-weekdayIdx(base)); break;
+    case 'End':        e.preventDefault(); calMoveDays(6 - weekdayIdx(base)); break;
+    case 'PageUp':     e.preventDefault(); calMoveMonths(-1, true); break;
+    case 'PageDown':   e.preventDefault(); calMoveMonths(1, true); break;
+  }
+});
+
+/* 面板内交互 */
+const calCloseBtn = $('#calPanelClose'), calCancelBtn = $('#calFormCancel');
+if (calCloseBtn) calCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); calCloseDay(); });
+if (calToggleEl) calToggleEl.addEventListener('click', (e) => {
+  e.stopPropagation();
+  calSetAdding(!cal.adding, true);
+});
+if (calCancelBtn) calCancelBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  calSetAdding(false, false);
+  clearFieldError($('#calTaskName'), $('#calTaskNameErr'));
+  clearFieldError($('#calTaskDeadline'), $('#calTaskDeadlineErr'));
+  const fe = $('#calFormErr');
+  if (fe) { fe.hidden = true; fe.textContent = ''; }
+  if (calToggleEl) calToggleEl.focus();
+});
+if (calFormEl) {
+  calFormEl.addEventListener('click', (e) => e.stopPropagation());
+  calFormEl.addEventListener('submit', (e) => { e.preventDefault(); calSubmit(); });
+}
+/* 与底部表单保持同一套反馈节奏：一动手就清掉该字段的旧错误，
+   截止日填完离开字段时立刻校验一次（空值不在失焦时报错，提交时统一校验） */
+[['calTaskName', 'calTaskNameErr'], ['calTaskDeadline', 'calTaskDeadlineErr']].forEach(pair => {
+  const el = document.getElementById(pair[0]);
+  const err = document.getElementById(pair[1]);
+  if (!el) return;
+  el.addEventListener('input', () => clearFieldError(el, err));
+});
+const calDlEl = $('#calTaskDeadline');
+if (calDlEl) calDlEl.addEventListener('change', () => {
+  if (!calDlEl.value) return;
+  setFieldError(calDlEl, $('#calTaskDeadlineErr'), dateFieldError(calDlEl.value));
+});
+
+/* 面板里的任务操作：完成 / 删除 / 勾选子任务 —— 全部走同一份 flags，
+   与卡片区的行为、存储路径（文件 / 浏览器 / localStorage）完全一致 */
+if (calListEl) calListEl.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('[data-cal-action]');
+  if (!btn) return;
+  e.stopPropagation();
+  const li = btn.closest('.cal-task');
+  const flag = li && findFlag(li.dataset.id);
+  if (!flag) return;
+  if (btn.dataset.calAction === 'toggle-done') {
+    flag.completed = !flag.completed;
+    save(); render();
+    calSay('「' + flag.name + '」已' + (flag.completed ? '标记为已完成' : '取消完成'));
+  } else if (btn.dataset.calAction === 'delete') {
+    const name = flag.name;
+    flags = flags.filter(f => f.id !== flag.id);
+    expandedIds.delete(flag.id);
+    save(); render();
+    showToast('🗑️ 已删除「' + name + '」');
+    calSay('已删除「' + name + '」');
+  }
+});
+
+if (calListEl) calListEl.addEventListener('change', (e) => {
+  const cb = e.target;
+  if (!(cb instanceof HTMLInputElement) || cb.type !== 'checkbox') return;
+  const li = cb.closest('.subtask-item');
+  const task = cb.closest('.cal-task');
+  if (!li || !task) return;
+  const flag = findFlag(task.dataset.id);
+  const sub = flag && flag.subtasks.find(s => s.id === li.dataset.id);
+  if (!sub) return;
+  sub.done = cb.checked;
+  const cid = cb.id;                     // 重绘会换掉 DOM，先记下 id 好把焦点还回去
+  save(); render();
+  const again = document.getElementById(cid);
+  if (again) again.focus();
+});
+
+/* ---- 提交：添加当天任务 ---- */
+function calSubmit() {
+  const nameEl = $('#calTaskName'), dlEl = $('#calTaskDeadline'), subsEl = $('#calTaskSubs');
+  const nameErr = $('#calTaskNameErr'), dlErr = $('#calTaskDeadlineErr'), formErr = $('#calFormErr');
+  clearFieldError(nameEl, nameErr);
+  clearFieldError(dlEl, dlErr);
+  if (formErr) { formErr.hidden = true; formErr.textContent = ''; }
+
+  const iso = calPlanEl.value;
+  const today = todayISO();
+
+  /* 过去日期：与「截止日不能早于今天」是同一条规则，同样用内联报错而不是弹 toast */
+  if (!parseISO(iso) || iso < today) {
+    if (formErr) {
+      formErr.textContent = '计划日期 ' + (iso || '（空）') + ' 已过去，不能添加任务（今天是 ' + today + '）';
+      formErr.hidden = false;
+    }
+    calSay('保存失败：计划日期已过去');
+    return;
+  }
+
+  let firstBad = null;
+  if (!nameEl.value.trim()) { setFieldError(nameEl, nameErr, '请填写任务名称'); firstBad = nameEl; }
+  const dl = dlEl.value;
+  if (dl) {
+    const msg = dateFieldError(dl);      // 完全复用底部表单的校验规则与文案
+    if (msg) { setFieldError(dlEl, dlErr, msg); firstBad = firstBad || dlEl; }
+  }
+  if (firstBad) { firstBad.focus(); return; }
+
+  const subs = subsEl.value.split('\n')
+    .map(s => s.trim()).filter(Boolean)
+    .map(text => ({ id: uid(), text: text.slice(0, 60), done: false }));
+
+  const f = {
+    id: uid(),
+    name: nameEl.value.trim(),
+    date: dl || iso,        // 截止日留空即用计划当天，避免卡片上出现「日期无效」
+    plan_date: iso,
+    completed: false,
+    subtasks: subs
+  };
+  flags.push(f);
+  highlightId = f.id;
+  save();
+  render();                 // render() 末尾会刷新月历与当天面板
+
+  showToast('✅ 已把「' + f.name + '」加到 ' + iso, 3200);
+  calSay('已添加「' + f.name + '」到 ' + iso + '，当天共 ' + flagsOnDate(iso).length + ' 项任务');
+
+  /* 面板保持打开，用户能立刻在列表里看到刚加的任务；只清空表单并收起它 */
+  nameEl.value = ''; dlEl.value = ''; subsEl.value = '';
+  clearFieldError(dlEl, dlErr);
+  calSetAdding(false, false);
+  const first = calListEl.querySelector('.cal-task-name');
+  if (first) calScrollIntoView(first);
+}
+
+/* ---- 初始化：默认停在今天所在月份 ---- */
+(function initCalendar() {
+  if (!calGridEl) return;
+  const t = parseISO(todayISO()) || new Date();
+  cal.viewY = t.getFullYear();
+  cal.viewM = t.getMonth();
+  cal.focusDate = todayISO();
+  renderCalendar();
+})();
+
+/* ---- Esc 冲突处理（关键） ----
+   本项目里 Esc 的默认语义是「隐藏整个屏保」，但当天面板打开时 Esc 只能关面板。
+   做法：在 capture 阶段监听 window，命中后 stopImmediatePropagation 掐断后续监听器：
+     · patchSaverExit() 里那个 capture 监听器（异步注册，必然晚于本监听器）不会执行；
+     · document 上冒泡阶段的「Esc 退出屏保」同样收不到。
+   面板一关闭，本监听器直接 return，原有 Esc 行为原样恢复。
+   设置面板打开时让位给它（它的 Esc 语义是「取消并关闭」）。 */
+window.addEventListener('keydown', function (e) {
+  if (!calPanelOpen) return;
+  if (e.isComposing || e.keyCode === 229) return;
+  if (!(e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27)) return;
+  if (stPanelOpen()) return;               // 设置面板优先
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  calCloseDay();
+}, true);
 
 /* ==================== 卡片区事件委托 ==================== */
 flagsGrid.addEventListener('click', (e) => {
@@ -1251,7 +2053,8 @@ $('#enterFsBtn').addEventListener('click', (e) => { e.stopPropagation(); enterSc
 $('#exitFsBtn').addEventListener('click', (e) => { e.stopPropagation(); exitScreensaver(); });
 
 /* 点击"空白区域"进入屏保 */
-const INTERACTIVE = 'button, input, select, textarea, label, a, .card, .add-section';
+/* 月历整块也算交互区：面板里的任务标题不是表单控件，不加进来点一下就会误进屏保 */
+const INTERACTIVE = 'button, input, select, textarea, label, a, .card, .add-section, .cal-section';
 document.addEventListener('click', (e) => {
   if (hasFileStore) return;   // 真实屏保环境：鼠标点击不进入/退出，避免隐藏编辑区
   if (document.body.classList.contains('screensaver')) return;

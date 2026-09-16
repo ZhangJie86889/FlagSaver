@@ -33,6 +33,10 @@ v1.1.1 修复（详见 PR ./CHANGELOG_v1.1.1.md）：
      导致单实例保护形同虚设）；
   ⑥ 顺延备选热键换成 Win+Shift / Ctrl+Shift / F9 这类冷门组合（原表里 ctrl+alt+d/s/1
      等在很多软件和输入法里都被占用，顺延过去基本等于白试）。
+v1.2.0：新增「月历视图」（全部在 flag.html 侧实现），Flag 数据多了一个 plan_date
+  字段表示「计划在哪一天执行」。后端 API 与存储路径都没有变 —— read_flags /
+  write_flags 本来就是原样透传 JSON 文本、不做字段白名单，所以本文件除了版本号
+  之外无需任何改动。详见 ./CHANGELOG_v1.2.0.md。
 """
 import os
 import re
@@ -45,7 +49,7 @@ import winreg
 
 import webview
 
-APP_VERSION = '1.1.1'
+APP_VERSION = '1.2.0'
 WINDOW_TITLE = 'Flag 倒计时'
 
 # 命令行模式：
